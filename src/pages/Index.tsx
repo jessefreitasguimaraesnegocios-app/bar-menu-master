@@ -1,13 +1,33 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { Helmet } from 'react-helmet-async';
+import Header from '@/components/Header';
+import HeroSection from '@/components/HeroSection';
+import FeaturedSection from '@/components/FeaturedSection';
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <>
+      <Helmet>
+        <title>The Golden Pour | Craft Cocktails & Fine Dining</title>
+        <meta name="description" content="Experience handcrafted cocktails, fine wines, and exceptional cuisine at The Golden Pour. Browse our menu of artisan drinks and gourmet food." />
+      </Helmet>
+      
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main>
+          <HeroSection />
+          <FeaturedSection />
+          
+          {/* Footer */}
+          <footer className="py-12 border-t border-border/50">
+            <div className="container mx-auto px-4 text-center">
+              <p className="text-muted-foreground text-sm">
+                © 2024 The Golden Pour. All rights reserved.
+              </p>
+            </div>
+          </footer>
+        </main>
       </div>
-    </div>
+    </>
   );
 };
 
