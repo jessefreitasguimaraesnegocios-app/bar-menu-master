@@ -1,18 +1,24 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Wine } from 'lucide-react';
+import { Menu, X, Wine, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
+  const { isOwner, signOut } = useAuth();
 
   const navLinks = [
     { href: '/', label: 'Início' },
     { href: '/menu', label: 'Cardápio' },
-    { href: '/owner', label: 'Portal do Dono' },
   ];
+
+  // Adicionar Portal do Dono apenas se for owner
+  if (isOwner) {
+    navLinks.push({ href: '/owner', label: 'Portal do Dono' });
+  }
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -52,6 +58,17 @@ const Header = () => {
                 )}
               </Link>
             ))}
+            {isOwner && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sair
+              </Button>
+            )}
           </nav>
 
           {/* Mobile Menu Button */}
@@ -88,6 +105,19 @@ const Header = () => {
                   {link.label}
                 </Link>
               ))}
+              {isOwner && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    signOut();
+                    setIsMenuOpen(false);
+                  }}
+                  className="justify-start text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sair
+                </Button>
+              )}
             </nav>
           </motion.div>
         )}

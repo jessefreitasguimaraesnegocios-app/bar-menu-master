@@ -7,6 +7,7 @@ Este diretório contém os arquivos SQL necessários para configurar o banco de 
 - `schema.sql` - Schema completo do banco de dados com tabelas, políticas de segurança e funções
 - `storage.sql` - Configuração do bucket de storage para imagens do cardápio
 - `seed.sql` - Dados iniciais para popular o banco de dados
+- `check-schema.sql` - Script de verificação para validar se tudo foi criado corretamente
 
 ## 🚀 Como Usar
 
@@ -35,6 +36,13 @@ Se você quiser popular o banco com dados de exemplo:
 
 1. Execute o arquivo `seed.sql` no SQL Editor
 2. Isso inserirá todos os itens de exemplo do cardápio
+
+### 5. (Opcional) Verificar Schema
+
+Para verificar se tudo foi criado corretamente:
+
+1. Execute o arquivo `check-schema.sql` no SQL Editor
+2. Isso mostrará o status de todas as tabelas, políticas, índices e funções
 
 ## 📊 Estrutura do Banco
 

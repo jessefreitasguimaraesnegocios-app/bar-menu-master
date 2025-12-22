@@ -10,6 +10,12 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('menu-images', 'menu-images', true)
 ON CONFLICT (id) DO NOTHING;
 
+-- Remover políticas existentes se houver (para evitar conflitos)
+DROP POLICY IF EXISTS "Menu images are publicly accessible" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload menu images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update menu images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete menu images" ON storage.objects;
+
 -- Política: Qualquer pessoa pode ler imagens
 CREATE POLICY "Menu images are publicly accessible"
 ON storage.objects FOR SELECT

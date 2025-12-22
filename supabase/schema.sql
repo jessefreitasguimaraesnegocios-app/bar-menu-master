@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS menu_items (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_by UUID REFERENCES auth.users(id),
-  updated_by UUID REFERENCES auth.users(id)
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 -- ============================================
@@ -74,6 +74,12 @@ CREATE TRIGGER update_menu_items_updated_at
 
 -- Habilitar RLS na tabela
 ALTER TABLE menu_items ENABLE ROW LEVEL SECURITY;
+
+-- Remover políticas existentes se houver (para evitar conflitos)
+DROP POLICY IF EXISTS "Menu items are viewable by everyone" ON menu_items;
+DROP POLICY IF EXISTS "Authenticated users can insert menu items" ON menu_items;
+DROP POLICY IF EXISTS "Authenticated users can update menu items" ON menu_items;
+DROP POLICY IF EXISTS "Authenticated users can delete menu items" ON menu_items;
 
 -- Política: Qualquer pessoa pode ler itens ativos
 CREATE POLICY "Menu items are viewable by everyone"
