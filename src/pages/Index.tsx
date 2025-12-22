@@ -7,8 +7,8 @@ const Index = () => {
   return (
     <>
       <Helmet>
-        <title>The Golden Pour | Craft Cocktails & Fine Dining</title>
-        <meta name="description" content="Experience handcrafted cocktails, fine wines, and exceptional cuisine at The Golden Pour. Browse our menu of artisan drinks and gourmet food." />
+        <title>Cantim | Restaurante Bar</title>
+        <meta name="description" content="Experimente coquetéis artesanais, vinhos finos e uma culinária excepcional no Cantim. Veja nosso cardápio de bebidas artesanais e pratos gourmet." />
       </Helmet>
       
       <div className="min-h-screen bg-background">
@@ -21,7 +21,7 @@ const Index = () => {
           <footer className="py-12 border-t border-border/50">
             <div className="container mx-auto px-4 text-center">
               <p className="text-muted-foreground text-sm">
-                © 2024 The Golden Pour. All rights reserved.
+                © 2024 Cantim Restaurante Bar. Todos os direitos reservados.
               </p>
             </div>
           </footer>

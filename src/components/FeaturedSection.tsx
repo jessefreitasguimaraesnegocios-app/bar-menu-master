@@ -17,13 +17,13 @@ const FeaturedSection = () => {
         >
           <span className="inline-flex items-center gap-2 text-primary text-sm font-medium mb-4">
             <Star className="w-4 h-4" />
-            Guest Favorites
+            Favoritos dos Clientes
           </span>
           <h2 className="font-serif text-4xl md:text-5xl font-bold mb-4">
-            Most Loved Picks
+            Mais Pedidos
           </h2>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            Discover what keeps our guests coming back for more
+            Descubra o que faz nossos clientes voltarem sempre
           </p>
         </motion.div>
 
@@ -49,7 +49,7 @@ const FeaturedSection = () => {
                 {/* Content Overlay */}
                 <div className="absolute bottom-0 left-0 right-0 p-6">
                   <span className="text-primary text-sm font-medium mb-2 block">
-                    ${item.price}
+                    R$ {item.price.toFixed(2)}
                   </span>
                   <h3 className="font-serif text-xl font-semibold mb-2">
                     {item.name}
