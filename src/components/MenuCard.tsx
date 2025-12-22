@@ -40,7 +40,7 @@ const MenuCard = ({ item, onClick, index }: MenuCardProps) => {
             {item.isNew && (
               <Badge className="bg-accent/90 text-accent-foreground border-0">
                 <Sparkles className="w-3 h-3 mr-1" />
-                New
+                Novo
               </Badge>
             )}
           </div>
@@ -48,7 +48,7 @@ const MenuCard = ({ item, onClick, index }: MenuCardProps) => {
           {/* Price Tag */}
           <div className="absolute top-3 right-3">
             <span className="px-3 py-1.5 rounded-full bg-background/80 backdrop-blur-sm text-primary font-semibold text-sm">
-              ${item.price}
+              R$ {item.price.toFixed(2)}
             </span>
           </div>
         </div>

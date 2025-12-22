@@ -26,7 +26,7 @@ const CategoryFilter = ({ activeCategory, onCategoryChange }: CategoryFilterProp
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
           />
         )}
-        <span className="relative z-10">All Items</span>
+        <span className="relative z-10">Todos</span>
       </motion.button>
 
       {categories.map((category) => (

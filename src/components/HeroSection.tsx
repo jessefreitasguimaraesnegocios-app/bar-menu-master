@@ -2,15 +2,20 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import heroBackground from '@/assets/cantim-logo.png';
 
 const HeroSection = () => {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background Effects */}
+      {/* Background Image */}
       <div className="absolute inset-0">
+        <img
+          src={heroBackground}
+          alt="Cantim Restaurante Bar"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-background/70" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(32_80%_50%/0.08),transparent_70%)]" />
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-glow-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-accent/5 rounded-full blur-3xl animate-glow-pulse" style={{ animationDelay: '1.5s' }} />
       </div>
 
       {/* Content */}
@@ -28,18 +33,18 @@ const HeroSection = () => {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-8"
           >
             <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm text-muted-foreground">Crafted with passion since 1923</span>
+            <span className="text-sm text-muted-foreground">Restaurante Bar</span>
           </motion.div>
 
           {/* Headline */}
           <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl font-bold mb-6 leading-tight">
-            <span className="block">Where Every</span>
-            <span className="block text-primary glow-text">Pour Tells a Story</span>
+            <span className="block">Sabor e</span>
+            <span className="block text-primary glow-text">Tradição</span>
           </h1>
 
           {/* Subheadline */}
           <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-12 leading-relaxed">
-            Experience handcrafted cocktails, fine wines, and exceptional cuisine in an atmosphere of timeless elegance.
+            Experimente coquetéis artesanais, vinhos finos e uma culinária excepcional em um ambiente de elegância atemporal.
           </p>
 
           {/* CTA Buttons */}
@@ -49,7 +54,7 @@ const HeroSection = () => {
                 size="lg"
                 className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-lg font-medium rounded-full shadow-glow transition-all duration-300 hover:shadow-[0_0_60px_hsl(32_80%_50%/0.3)]"
               >
-                Explore Our Menu
+                Ver Cardápio
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
@@ -59,7 +64,7 @@ const HeroSection = () => {
                 size="lg"
                 className="border-border/50 hover:border-primary/50 hover:bg-primary/5 px-8 py-6 text-lg font-medium rounded-full"
               >
-                Owner Portal
+                Portal do Dono
               </Button>
             </Link>
           </div>

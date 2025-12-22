@@ -9,9 +9,9 @@ const Header = () => {
   const location = useLocation();
 
   const navLinks = [
-    { href: '/', label: 'Home' },
-    { href: '/menu', label: 'Menu' },
-    { href: '/owner', label: 'Owner Portal' },
+    { href: '/', label: 'Início' },
+    { href: '/menu', label: 'Cardápio' },
+    { href: '/owner', label: 'Portal do Dono' },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -27,7 +27,7 @@ const Header = () => {
               <div className="absolute inset-0 blur-lg bg-primary/30 animate-glow-pulse" />
             </div>
             <span className="font-serif text-2xl font-semibold tracking-wide">
-              The Golden Pour
+              Cantim
             </span>
           </Link>
 

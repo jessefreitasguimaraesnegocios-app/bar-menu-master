@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Droplets, Clock, Sparkles, Star } from 'lucide-react';
 import { MenuItem } from '@/data/menuData';
 import { Badge } from '@/components/ui/badge';
@@ -48,7 +47,7 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
             {item.isNew && (
               <Badge className="bg-accent/90 text-accent-foreground border-0">
                 <Sparkles className="w-3 h-3 mr-1" />
-                New
+                Novo
               </Badge>
             )}
           </div>
@@ -59,7 +58,7 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
               {item.name}
             </h2>
             <div className="flex items-center gap-4">
-              <span className="text-2xl font-semibold text-primary">${item.price}</span>
+              <span className="text-2xl font-semibold text-primary">R$ {item.price.toFixed(2)}</span>
               {item.abv && (
                 <span className="flex items-center gap-1 text-muted-foreground">
                   <Droplets className="w-4 h-4" />
@@ -80,7 +79,7 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
           {item.ingredients && item.ingredients.length > 0 && (
             <div>
               <h3 className="font-serif text-lg font-semibold mb-3 text-primary">
-                Ingredients
+                Ingredientes
               </h3>
               <div className="flex flex-wrap gap-2">
                 {item.ingredients.map((ingredient, index) => (
@@ -100,7 +99,7 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
             <div>
               <h3 className="font-serif text-lg font-semibold mb-3 text-primary flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                Preparation
+                Preparo
               </h3>
               <p className="text-muted-foreground leading-relaxed">
                 {item.preparation}

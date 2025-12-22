@@ -29,8 +29,8 @@ const Menu = () => {
   return (
     <>
       <Helmet>
-        <title>Menu | The Golden Pour</title>
-        <meta name="description" content="Browse our full menu of craft cocktails, fine wines, premium spirits, and gourmet dishes. Find your next favorite drink or meal." />
+        <title>Cardápio | Cantim</title>
+        <meta name="description" content="Veja nosso cardápio completo de coquetéis artesanais, vinhos finos, destilados premium e pratos gourmet. Encontre sua próxima bebida ou refeição favorita." />
       </Helmet>
 
       <div className="min-h-screen bg-background">
@@ -47,10 +47,10 @@ const Menu = () => {
                 className="text-center mb-12"
               >
                 <h1 className="font-serif text-5xl md:text-6xl font-bold mb-4">
-                  Our <span className="text-primary glow-text">Menu</span>
+                  Nosso <span className="text-primary glow-text">Cardápio</span>
                 </h1>
                 <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                  From classic cocktails to culinary delights, every item is crafted with care
+                  De coquetéis clássicos a delícias culinárias, cada item é preparado com carinho
                 </p>
               </motion.div>
 
@@ -98,7 +98,7 @@ const Menu = () => {
                 className="text-center py-16"
               >
                 <p className="text-muted-foreground text-lg">
-                  No items found matching your search.
+                  Nenhum item encontrado para sua busca.
                 </p>
               </motion.div>
             )}

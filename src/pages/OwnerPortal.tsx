@@ -9,8 +9,8 @@ const OwnerPortal = () => {
   return (
     <>
       <Helmet>
-        <title>Owner Portal | The Golden Pour</title>
-        <meta name="description" content="Manage your bar menu, add new items, update pricing, and upload images. Secure portal for bar owners." />
+        <title>Portal do Dono | Cantim</title>
+        <meta name="description" content="Gerencie o cardápio do seu bar, adicione novos itens, atualize preços e faça upload de imagens. Portal seguro para proprietários." />
       </Helmet>
 
       <div className="min-h-screen bg-background">
@@ -26,14 +26,14 @@ const OwnerPortal = () => {
             >
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
                 <Shield className="w-4 h-4 text-primary" />
-                <span className="text-sm text-muted-foreground">Secure Management Portal</span>
+                <span className="text-sm text-muted-foreground">Portal de Gerenciamento Seguro</span>
               </div>
               
               <h1 className="font-serif text-5xl md:text-6xl font-bold mb-4">
-                Owner <span className="text-primary glow-text">Portal</span>
+                Portal do <span className="text-primary glow-text">Dono</span>
               </h1>
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-                Manage your menu, update items, and keep your bar running smoothly
+                Gerencie seu cardápio, atualize itens e mantenha seu bar funcionando perfeitamente
               </p>
             </motion.div>
 
@@ -49,9 +49,9 @@ const OwnerPortal = () => {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                     <Plus className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="font-serif text-xl">Add Items</CardTitle>
+                  <CardTitle className="font-serif text-xl">Adicionar Itens</CardTitle>
                   <CardDescription>
-                    Create new menu items with descriptions, pricing, and categories
+                    Crie novos itens do cardápio com descrições, preços e categorias
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -61,9 +61,9 @@ const OwnerPortal = () => {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                     <Edit3 className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="font-serif text-xl">Edit Menu</CardTitle>
+                  <CardTitle className="font-serif text-xl">Editar Cardápio</CardTitle>
                   <CardDescription>
-                    Update existing items, change prices, and modify descriptions
+                    Atualize itens existentes, altere preços e modifique descrições
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -73,9 +73,9 @@ const OwnerPortal = () => {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                     <ImagePlus className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="font-serif text-xl">Upload Images</CardTitle>
+                  <CardTitle className="font-serif text-xl">Upload de Imagens</CardTitle>
                   <CardDescription>
-                    Add stunning photos to showcase your drinks and dishes
+                    Adicione fotos incríveis para exibir suas bebidas e pratos
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -85,9 +85,9 @@ const OwnerPortal = () => {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                     <Trash2 className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="font-serif text-xl">Remove Items</CardTitle>
+                  <CardTitle className="font-serif text-xl">Remover Itens</CardTitle>
                   <CardDescription>
-                    Archive or delete items that are no longer available
+                    Arquive ou delete itens que não estão mais disponíveis
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -97,9 +97,9 @@ const OwnerPortal = () => {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                     <Database className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="font-serif text-xl">Categories</CardTitle>
+                  <CardTitle className="font-serif text-xl">Categorias</CardTitle>
                   <CardDescription>
-                    Organize items into cocktails, beers, wines, spirits, and food
+                    Organize itens em coquetéis, cervejas, vinhos, destilados e comidas
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -109,9 +109,9 @@ const OwnerPortal = () => {
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
                     <Lock className="w-6 h-6 text-primary" />
                   </div>
-                  <CardTitle className="font-serif text-xl">Secure Access</CardTitle>
+                  <CardTitle className="font-serif text-xl">Acesso Seguro</CardTitle>
                   <CardDescription>
-                    Protected with authentication to ensure only owners can manage
+                    Protegido com autenticação para garantir que apenas donos possam gerenciar
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -128,16 +128,16 @@ const OwnerPortal = () => {
                 <CardContent className="pt-8 pb-8">
                   <Lock className="w-12 h-12 text-primary mx-auto mb-4" />
                   <h3 className="font-serif text-2xl font-semibold mb-3">
-                    Backend Required
+                    Backend Necessário
                   </h3>
                   <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    To enable menu management features like adding, editing, and deleting items with secure authentication, connect to Lovable Cloud.
+                    Para habilitar recursos de gerenciamento de cardápio como adicionar, editar e deletar itens com autenticação segura, conecte ao Lovable Cloud.
                   </p>
                   <Button
                     size="lg"
                     className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-lg font-medium rounded-full shadow-glow"
                   >
-                    Connect Backend
+                    Conectar Backend
                   </Button>
                 </CardContent>
               </Card>
