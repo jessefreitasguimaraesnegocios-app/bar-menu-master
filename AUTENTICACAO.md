@@ -98,3 +98,6 @@ As políticas RLS já estão configuradas no `schema.sql`:
 - Faça login primeiro
 - Verifique se o usuário tem role 'owner'
 
+
+
+

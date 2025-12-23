@@ -108,3 +108,6 @@ WHERE is_active = TRUE
 GROUP BY category
 ORDER BY category;
 
+
+
+

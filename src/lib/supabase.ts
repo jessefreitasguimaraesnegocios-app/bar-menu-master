@@ -14,7 +14,16 @@ export const initializeSupabase = (url: string, anonKey: string): SupabaseClient
 
 export const getSupabaseClient = (): SupabaseClient | null => {
   if (!supabaseClient) {
-    // Try to initialize from localStorage first
+    // Prioridade 1: Variáveis de ambiente (recomendado)
+    const envUrl = import.meta.env.VITE_SUPABASE_URL;
+    const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (envUrl && envAnonKey) {
+      supabaseClient = createClient(envUrl, envAnonKey);
+      return supabaseClient;
+    }
+    
+    // Prioridade 2: localStorage (fallback para conexão manual)
     if (typeof window !== 'undefined') {
       const savedUrl = localStorage.getItem('supabase_url');
       const savedKey = localStorage.getItem('supabase_anon_key');
@@ -23,14 +32,6 @@ export const getSupabaseClient = (): SupabaseClient | null => {
         supabaseClient = createClient(savedUrl, savedKey);
         return supabaseClient;
       }
-    }
-    
-    // Fallback to environment variables
-    const url = import.meta.env.VITE_SUPABASE_URL;
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (url && anonKey) {
-      supabaseClient = createClient(url, anonKey);
     }
   }
   return supabaseClient;
