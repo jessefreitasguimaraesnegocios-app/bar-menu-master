@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, Loader2, Image as ImageIcon, Check } from 'lucide-react';
+import { Upload, X, Loader2, Image as ImageIcon, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -27,6 +28,7 @@ const BackgroundImageManager = () => {
     menu: null,
     featured: null,
   });
+  const [bucketError, setBucketError] = useState(false);
   const { toast } = useToast();
 
   const fetchImages = async () => {
@@ -77,13 +79,21 @@ const BackgroundImageManager = () => {
       });
 
       setImages(imageList);
-    } catch (error) {
+      setBucketError(false);
+    } catch (error: any) {
       console.error('Error fetching images:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível carregar as imagens.',
-        variant: 'destructive',
-      });
+      
+      // Verificar se o erro é de bucket não encontrado
+      if (error?.message?.includes('Bucket not found') || error?.message?.includes('bucket')) {
+        setBucketError(true);
+      } else {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível carregar as imagens.',
+          variant: 'destructive',
+          duration: 6000,
+        });
+      }
     }
   };
 
@@ -166,12 +176,23 @@ const BackgroundImageManager = () => {
       });
 
       await fetchImages();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading image:', error);
+      
+      let errorMessage = 'Não foi possível fazer upload da imagem.';
+      
+      // Verificar se o erro é de bucket não encontrado
+      if (error?.message?.includes('Bucket not found') || error?.message?.includes('bucket')) {
+        errorMessage = 'Bucket "background-images" não encontrado. Por favor, crie o bucket no Supabase Storage primeiro. Veja as instruções em supabase/BACKGROUND_IMAGES_SETUP.md';
+      } else if (error?.message) {
+        errorMessage = `Erro: ${error.message}`;
+      }
+      
       toast({
-        title: 'Erro',
-        description: 'Não foi possível fazer upload da imagem.',
+        title: 'Erro no Upload',
+        description: errorMessage,
         variant: 'destructive',
+        duration: 8000, // Mostrar por mais tempo
       });
     } finally {
       setUploading(false);
@@ -239,6 +260,30 @@ const BackgroundImageManager = () => {
           </DialogHeader>
 
           <div className="space-y-6">
+            {/* Aviso de bucket não encontrado */}
+            {bucketError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Bucket não encontrado</AlertTitle>
+                <AlertDescription className="mt-2">
+                  O bucket "background-images" não existe no Supabase Storage. 
+                  <br />
+                  <strong>Para resolver:</strong>
+                  <ol className="list-decimal list-inside mt-2 space-y-1">
+                    <li>Acesse o dashboard do Supabase</li>
+                    <li>Vá em <strong>Storage</strong> no menu lateral</li>
+                    <li>Clique em <strong>New bucket</strong></li>
+                    <li>Nome: <strong>background-images</strong></li>
+                    <li>Marque como <strong>Público</strong></li>
+                    <li>Clique em <strong>Create bucket</strong></li>
+                  </ol>
+                  <p className="mt-2 text-sm">
+                    Veja instruções completas em: <code className="bg-muted px-1 rounded">supabase/BACKGROUND_IMAGES_SETUP.md</code>
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Seleção de tipo */}
             <div>
               <Label>Selecione a página</Label>
