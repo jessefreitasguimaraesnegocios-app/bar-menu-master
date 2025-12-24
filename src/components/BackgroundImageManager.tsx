@@ -1,0 +1,333 @@
+import { useState, useEffect } from 'react';
+import { Upload, X, Loader2, Image as ImageIcon, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { getSupabaseClient } from '@/lib/supabase';
+import { useToast } from '@/hooks/use-toast';
+
+type BackgroundImageType = 'hero' | 'menu' | 'featured';
+
+interface BackgroundImage {
+  id: string;
+  type: BackgroundImageType;
+  url: string;
+  name: string;
+  created_at: string;
+}
+
+const BackgroundImageManager = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [images, setImages] = useState<BackgroundImage[]>([]);
+  const [selectedType, setSelectedType] = useState<BackgroundImageType>('hero');
+  const [currentImages, setCurrentImages] = useState<Record<BackgroundImageType, string | null>>({
+    hero: null,
+    menu: null,
+    featured: null,
+  });
+  const { toast } = useToast();
+
+  const fetchImages = async () => {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    try {
+      // Buscar imagens do storage
+      const { data: files, error } = await client.storage
+        .from('background-images')
+        .list('', {
+          limit: 100,
+          sortBy: { column: 'created_at', order: 'desc' },
+        });
+
+      if (error) throw error;
+
+      // Buscar configurações atuais
+      const { data: configs, error: configError } = await client
+        .from('background_image_configs')
+        .select('*');
+
+      if (!configError && configs) {
+        const configMap: Record<BackgroundImageType, string | null> = {
+          hero: null,
+          menu: null,
+          featured: null,
+        };
+        configs.forEach((config: any) => {
+          configMap[config.type as BackgroundImageType] = config.image_url;
+        });
+        setCurrentImages(configMap);
+      }
+
+      // Transformar arquivos em BackgroundImage
+      const imageList: BackgroundImage[] = (files || []).map((file) => {
+        const { data: urlData } = client.storage
+          .from('background-images')
+          .getPublicUrl(file.name);
+
+        return {
+          id: file.name, // Usar nome do arquivo como ID
+          type: 'hero' as BackgroundImageType, // Default, será atualizado
+          url: urlData.publicUrl,
+          name: file.name,
+          created_at: file.created_at || new Date().toISOString(),
+        };
+      });
+
+      setImages(imageList);
+    } catch (error) {
+      console.error('Error fetching images:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar as imagens.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchImages();
+    }
+  }, [isOpen]);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de arquivo
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Erro',
+        description: 'Por favor, selecione um arquivo de imagem.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validar tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'Erro',
+        description: 'A imagem deve ter no máximo 5MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploading(true);
+    const client = getSupabaseClient();
+    if (!client) {
+      toast({
+        title: 'Erro',
+        description: 'Supabase não está conectado.',
+        variant: 'destructive',
+      });
+      setUploading(false);
+      return;
+    }
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${selectedType}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+      const filePath = fileName;
+
+      // Upload para Supabase Storage
+      const { error: uploadError } = await client.storage
+        .from('background-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Obter URL pública
+      const { data: urlData } = client.storage
+        .from('background-images')
+        .getPublicUrl(filePath);
+
+      // Salvar configuração
+      const { error: configError } = await client
+        .from('background_image_configs')
+        .upsert({
+          type: selectedType,
+          image_url: urlData.publicUrl,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (configError) throw configError;
+
+      toast({
+        title: 'Sucesso',
+        description: 'Imagem de fundo atualizada com sucesso!',
+      });
+
+      await fetchImages();
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível fazer upload da imagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSelectImage = async (url: string) => {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    try {
+      const { error } = await client
+        .from('background_image_configs')
+        .upsert({
+          type: selectedType,
+          image_url: url,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+
+      setCurrentImages((prev) => ({
+        ...prev,
+        [selectedType]: url,
+      }));
+
+      toast({
+        title: 'Sucesso',
+        description: 'Imagem de fundo selecionada!',
+      });
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível selecionar a imagem.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <>
+      <Card
+        className="glass border-border/50 hover:border-primary/30 transition-all duration-300 cursor-pointer"
+        onClick={() => setIsOpen(true)}
+      >
+        <CardHeader>
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+            <ImageIcon className="w-6 h-6 text-primary" />
+          </div>
+          <CardTitle className="font-serif text-xl">Upload de Imagens</CardTitle>
+          <CardDescription>
+            Adicione fotos incríveis para exibir suas bebidas e pratos
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gerenciar Imagens de Fundo</DialogTitle>
+            <DialogDescription>
+              Faça upload e configure imagens de fundo para as páginas do site
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Seleção de tipo */}
+            <div>
+              <Label>Selecione a página</Label>
+              <div className="grid grid-cols-3 gap-4 mt-2">
+                {(['hero', 'menu', 'featured'] as BackgroundImageType[]).map((type) => (
+                  <Button
+                    key={type}
+                    variant={selectedType === type ? 'default' : 'outline'}
+                    onClick={() => setSelectedType(type)}
+                    className="capitalize"
+                  >
+                    {type === 'hero' ? 'Página Inicial' : type === 'menu' ? 'Cardápio' : 'Destaques'}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Upload */}
+            <div>
+              <Label>Fazer upload de nova imagem</Label>
+              <div className="mt-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  className="hidden"
+                  id="background-upload"
+                />
+                <Button
+                  asChild
+                  disabled={uploading}
+                  className="w-full"
+                >
+                  <label htmlFor="background-upload" className="cursor-pointer">
+                    {uploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Fazer Upload
+                      </>
+                    )}
+                  </label>
+                </Button>
+              </div>
+            </div>
+
+            {/* Lista de imagens */}
+            <div>
+              <Label>Imagens disponíveis</Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2">
+                {images.map((image) => (
+                  <div
+                    key={image.id}
+                    className="relative group cursor-pointer rounded-lg overflow-hidden border-2 border-border hover:border-primary transition-all"
+                    onClick={() => handleSelectImage(image.url)}
+                  >
+                    <img
+                      src={image.url}
+                      alt={image.name}
+                      className="w-full h-32 object-cover"
+                    />
+                    {currentImages[selectedType] === image.url && (
+                      <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                        <Check className="w-4 h-4" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-white text-sm font-medium">Selecionar</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {images.length === 0 && (
+                <p className="text-muted-foreground text-center py-8">
+                  Nenhuma imagem disponível. Faça upload de uma imagem para começar.
+                </p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
+export default BackgroundImageManager;
+

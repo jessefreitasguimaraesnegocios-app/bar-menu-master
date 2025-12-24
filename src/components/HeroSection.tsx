@@ -3,14 +3,18 @@ import { ArrowRight, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import heroBackground from '@/assets/cantim-logo.png';
+import { useBackgroundImages } from '@/hooks/useBackgroundImages';
 
 const HeroSection = () => {
+  const { images } = useBackgroundImages();
+  const backgroundImage = images.hero || heroBackground;
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0">
         <img
-          src={heroBackground}
+          src={backgroundImage}
           alt="Cantim Restaurante Bar"
           className="w-full h-full object-cover"
         />

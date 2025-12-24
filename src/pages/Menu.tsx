@@ -9,6 +9,7 @@ import SearchBar from '@/components/SearchBar';
 import ItemDetailModal from '@/components/ItemDetailModal';
 import PopularItemsCarousel from '@/components/PopularItemsCarousel';
 import { useMenuItems } from '@/hooks/useMenuItems';
+import { useBackgroundImages } from '@/hooks/useBackgroundImages';
 import { MenuItem, Category } from '@/data/menuData';
 import { menuItems as fallbackMenuItems } from '@/data/menuData';
 
@@ -19,6 +20,7 @@ const Menu = () => {
   
   // Buscar itens do Supabase (ou usar fallback se não estiver conectado)
   const { items: supabaseItems, loading } = useMenuItems();
+  const { images: backgroundImages } = useBackgroundImages();
   
   // Usar itens do Supabase se disponíveis, senão usar fallback
   const menuItems = supabaseItems.length > 0 ? supabaseItems : fallbackMenuItems;
@@ -54,6 +56,15 @@ const Menu = () => {
         <main className="pt-24 pb-16">
           {/* Hero Section */}
           <section className="py-16 relative">
+            {backgroundImages.menu && (
+              <div className="absolute inset-0">
+                <img
+                  src={backgroundImages.menu}
+                  alt="Background"
+                  className="w-full h-full object-cover opacity-30"
+                />
+              </div>
+            )}
             <div className="absolute inset-0 bg-gradient-glow opacity-50" />
             <div className="container mx-auto px-4 relative">
               <motion.div

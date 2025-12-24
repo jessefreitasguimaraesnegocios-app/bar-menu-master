@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SupabaseConnectionDialog from '@/components/SupabaseConnectionDialog';
 import MenuItemForm from '@/components/MenuItemForm';
 import MenuItemList from '@/components/MenuItemList';
+import BackgroundImageManager from '@/components/BackgroundImageManager';
 import { isSupabaseConnected, getSupabaseClient } from '@/lib/supabase';
 import { useMenuItems } from '@/hooks/useMenuItems';
 import { useToast } from '@/hooks/use-toast';
@@ -151,17 +152,7 @@ const OwnerPortal = () => {
                       </CardHeader>
                     </Card>
 
-                    <Card className="glass border-border/50 hover:border-primary/30 transition-all duration-300">
-                      <CardHeader>
-                        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                          <ImagePlus className="w-6 h-6 text-primary" />
-                        </div>
-                        <CardTitle className="font-serif text-xl">Upload de Imagens</CardTitle>
-                        <CardDescription>
-                          Adicione fotos incríveis para exibir suas bebidas e pratos
-                        </CardDescription>
-                      </CardHeader>
-                    </Card>
+                    <BackgroundImageManager />
 
                     <Card className="glass border-border/50 hover:border-primary/30 transition-all duration-300">
                       <CardHeader>
