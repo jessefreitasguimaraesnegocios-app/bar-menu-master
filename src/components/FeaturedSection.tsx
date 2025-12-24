@@ -1,8 +1,15 @@
 import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
-import { menuItems } from '@/data/menuData';
+import { useMenuItems } from '@/hooks/useMenuItems';
+import { menuItems as fallbackMenuItems } from '@/data/menuData';
 
 const FeaturedSection = () => {
+  // Buscar itens do Supabase (ou usar fallback se não estiver conectado)
+  const { items: supabaseItems } = useMenuItems();
+  
+  // Usar itens do Supabase se disponíveis, senão usar fallback
+  const menuItems = supabaseItems.length > 0 ? supabaseItems : fallbackMenuItems;
+  
   const popularItems = menuItems.filter((item) => item.isPopular).slice(0, 4);
 
   return (
