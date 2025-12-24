@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
+import { Star } from 'lucide-react';
 import Header from '@/components/Header';
 import MenuCard from '@/components/MenuCard';
 import CategoryFilter from '@/components/CategoryFilter';
 import SearchBar from '@/components/SearchBar';
 import ItemDetailModal from '@/components/ItemDetailModal';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { useMenuItems } from '@/hooks/useMenuItems';
 import { MenuItem, Category } from '@/data/menuData';
 import { menuItems as fallbackMenuItems } from '@/data/menuData';
@@ -20,6 +22,11 @@ const Menu = () => {
   
   // Usar itens do Supabase se disponíveis, senão usar fallback
   const menuItems = supabaseItems.length > 0 ? supabaseItems : fallbackMenuItems;
+
+  // Filtrar itens populares para o carrossel
+  const popularItems = useMemo(() => {
+    return menuItems.filter((item) => item.isPopular);
+  }, [menuItems]);
 
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
@@ -85,6 +92,56 @@ const Menu = () => {
               </motion.div>
             </div>
           </section>
+
+          {/* Carrossel de Itens Mais Pedidos */}
+          {popularItems.length > 0 && (
+            <section className="container mx-auto px-4 mb-16">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="mb-8"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Star className="w-6 h-6 text-primary fill-primary" />
+                  <h2 className="font-serif text-3xl md:text-4xl font-bold">
+                    Mais <span className="text-primary">Pedidos</span>
+                  </h2>
+                </div>
+                <p className="text-muted-foreground text-lg">
+                  Os favoritos dos nossos clientes
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                <Carousel
+                  opts={{
+                    align: "start",
+                    loop: false,
+                  }}
+                  className="w-full"
+                >
+                  <CarouselContent className="-ml-2 md:-ml-4">
+                    {popularItems.map((item, index) => (
+                      <CarouselItem key={item.id} className="pl-2 md:pl-4 basis-full sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+                        <MenuCard
+                          item={item}
+                          index={index}
+                          onClick={() => setSelectedItem(item)}
+                        />
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="left-0 md:-left-12" />
+                  <CarouselNext className="right-0 md:-right-12" />
+                </Carousel>
+              </motion.div>
+            </section>
+          )}
 
           {/* Menu Grid */}
           <section className="container mx-auto px-4">
