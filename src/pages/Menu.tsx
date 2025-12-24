@@ -7,7 +7,7 @@ import MenuCard from '@/components/MenuCard';
 import CategoryFilter from '@/components/CategoryFilter';
 import SearchBar from '@/components/SearchBar';
 import ItemDetailModal from '@/components/ItemDetailModal';
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
+import PopularItemsCarousel from '@/components/PopularItemsCarousel';
 import { useMenuItems } from '@/hooks/useMenuItems';
 import { MenuItem, Category } from '@/data/menuData';
 import { menuItems as fallbackMenuItems } from '@/data/menuData';
@@ -118,27 +118,10 @@ const Menu = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
               >
-                <Carousel
-                  opts={{
-                    align: "start",
-                    loop: true,
-                  }}
-                  className="w-full"
-                >
-                  <CarouselContent className="-ml-2 md:-ml-4">
-                    {popularItems.map((item, index) => (
-                      <CarouselItem key={item.id} className="pl-2 md:pl-4 basis-full sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
-                        <MenuCard
-                          item={item}
-                          index={index}
-                          onClick={() => setSelectedItem(item)}
-                        />
-                      </CarouselItem>
-                    ))}
-                  </CarouselContent>
-                  <CarouselPrevious className="left-0 md:-left-12" />
-                  <CarouselNext className="right-0 md:-right-12" />
-                </Carousel>
+                <PopularItemsCarousel
+                  items={popularItems}
+                  onItemClick={setSelectedItem}
+                />
               </motion.div>
             </section>
           )}
