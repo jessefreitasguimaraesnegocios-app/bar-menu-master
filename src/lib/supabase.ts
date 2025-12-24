@@ -23,6 +23,9 @@ export const getSupabaseClient = (): SupabaseClient | null => {
     if (!supabaseClient || 
         (supabaseClient as any).supabaseUrl !== envUrl) {
       supabaseClient = createClient(envUrl, envAnonKey);
+      if (typeof window !== 'undefined') {
+        console.log('✅ Supabase conectado via variáveis de ambiente');
+      }
     }
     return supabaseClient;
   }
@@ -39,8 +42,15 @@ export const getSupabaseClient = (): SupabaseClient | null => {
     
     if (savedUrl && savedKey) {
       supabaseClient = createClient(savedUrl, savedKey);
+      console.log('✅ Supabase conectado via localStorage');
       return supabaseClient;
     }
+  }
+  
+  // Log de debug em produção
+  if (typeof window !== 'undefined') {
+    console.warn('⚠️ Supabase não conectado. Variáveis de ambiente não encontradas.');
+    console.warn('💡 Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY na Vercel (veja VERCEL_SETUP.md)');
   }
   
   return null;
