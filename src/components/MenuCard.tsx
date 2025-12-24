@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion';
-import { Sparkles, Star } from 'lucide-react';
+import { Sparkles, Star, ShoppingCart } from 'lucide-react';
 import { MenuItem } from '@/data/menuData';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useCart } from '@/contexts/CartContext';
 
 interface MenuCardProps {
   item: MenuItem;
@@ -10,6 +12,13 @@ interface MenuCardProps {
 }
 
 const MenuCard = ({ item, onClick, index }: MenuCardProps) => {
+  const { addItem } = useCart();
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevenir que o click abra o modal
+    addItem(item, 1);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -62,11 +71,21 @@ const MenuCard = ({ item, onClick, index }: MenuCardProps) => {
             {item.description}
           </p>
           
-          {item.abv && (
-            <span className="text-xs text-muted-foreground/70">
-              {item.abv}% ABV
-            </span>
-          )}
+          <div className="flex items-center justify-between">
+            {item.abv && (
+              <span className="text-xs text-muted-foreground/70">
+                {item.abv}% ABV
+              </span>
+            )}
+            <Button
+              size="sm"
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={handleAddToCart}
+            >
+              <ShoppingCart className="h-4 w-4 mr-1" />
+              Adicionar
+            </Button>
+          </div>
         </div>
 
         {/* Hover Glow Effect */}

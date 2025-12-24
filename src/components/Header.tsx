@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Wine, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import CartDrawer from '@/components/CartDrawer';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -38,7 +39,7 @@ const Header = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-4">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -58,6 +59,7 @@ const Header = () => {
                 )}
               </Link>
             ))}
+            <CartDrawer />
             {isOwner && (
               <Button
                 variant="ghost"
@@ -105,6 +107,9 @@ const Header = () => {
                   {link.label}
                 </Link>
               ))}
+              <div className="flex justify-start">
+                <CartDrawer />
+              </div>
               {isOwner && (
                 <Button
                   variant="ghost"

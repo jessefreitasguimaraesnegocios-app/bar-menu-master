@@ -149,7 +149,7 @@ const BackgroundImageManager = () => {
         .from('background-images')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false,
+          upsert: true, // Permite sobrescrever se o arquivo já existir
         });
 
       if (uploadError) throw uploadError;
@@ -159,14 +159,36 @@ const BackgroundImageManager = () => {
         .from('background-images')
         .getPublicUrl(filePath);
 
-      // Salvar configuração
-      const { error: configError } = await client
+      // Salvar configuração - verificar se existe e fazer update ou insert
+      // Como 'type' é UNIQUE, precisamos tratar o caso de já existir
+      const { data: existingConfig } = await client
         .from('background_image_configs')
-        .upsert({
-          type: selectedType,
-          image_url: urlData.publicUrl,
-          updated_at: new Date().toISOString(),
-        });
+        .select('id')
+        .eq('type', selectedType)
+        .single();
+
+      let configError;
+      if (existingConfig) {
+        // Se existe, fazer UPDATE
+        const { error } = await client
+          .from('background_image_configs')
+          .update({
+            image_url: urlData.publicUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('type', selectedType);
+        configError = error;
+      } else {
+        // Se não existe, fazer INSERT
+        const { error } = await client
+          .from('background_image_configs')
+          .insert({
+            type: selectedType,
+            image_url: urlData.publicUrl,
+            updated_at: new Date().toISOString(),
+          });
+        configError = error;
+      }
 
       if (configError) throw configError;
 
@@ -181,11 +203,21 @@ const BackgroundImageManager = () => {
       
       let errorMessage = 'Não foi possível fazer upload da imagem.';
       
-      // Verificar se o erro é de bucket não encontrado
-      if (error?.message?.includes('Bucket not found') || error?.message?.includes('bucket')) {
-        errorMessage = 'Bucket "background-images" não encontrado. Por favor, crie o bucket no Supabase Storage primeiro. Veja as instruções em supabase/BACKGROUND_IMAGES_SETUP.md';
-      } else if (error?.message) {
-        errorMessage = `Erro: ${error.message}`;
+      // Verificar tipo de erro específico
+      const errorStatus = error?.status || error?.statusCode;
+      const errorMsg = error?.message || '';
+      
+      if (errorStatus === 409 || errorMsg.includes('409') || errorMsg.toLowerCase().includes('conflict')) {
+        errorMessage = 'Arquivo já existe ou há conflito. Tente novamente ou verifique as políticas de storage no Supabase.';
+      } else if (errorMsg.includes('Bucket not found') || 
+                 errorMsg.includes('bucket') ||
+                 errorMsg.toLowerCase().includes('bucket not found')) {
+        setBucketError(true); // Ativar o alerta detalhado
+        errorMessage = 'Bucket "background-images" não encontrado. Por favor, crie o bucket no Supabase Storage primeiro. Veja as instruções abaixo.';
+      } else if (errorStatus === 403 || errorMsg.includes('403') || errorMsg.toLowerCase().includes('permission')) {
+        errorMessage = 'Permissão negada. Verifique se as políticas de storage estão configuradas corretamente no Supabase.';
+      } else if (errorMsg) {
+        errorMessage = `Erro: ${errorMsg}`;
       }
       
       toast({
@@ -201,16 +233,45 @@ const BackgroundImageManager = () => {
 
   const handleSelectImage = async (url: string) => {
     const client = getSupabaseClient();
-    if (!client) return;
+    if (!client) {
+      toast({
+        title: 'Erro',
+        description: 'Supabase não está conectado.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     try {
-      const { error } = await client
+      // Verificar se existe configuração para este tipo
+      const { data: existingConfig } = await client
         .from('background_image_configs')
-        .upsert({
-          type: selectedType,
-          image_url: url,
-          updated_at: new Date().toISOString(),
-        });
+        .select('id')
+        .eq('type', selectedType)
+        .single();
+
+      let error;
+      if (existingConfig) {
+        // Se existe, fazer UPDATE
+        const { error: updateError } = await client
+          .from('background_image_configs')
+          .update({
+            image_url: url,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('type', selectedType);
+        error = updateError;
+      } else {
+        // Se não existe, fazer INSERT
+        const { error: insertError } = await client
+          .from('background_image_configs')
+          .insert({
+            type: selectedType,
+            image_url: url,
+            updated_at: new Date().toISOString(),
+          });
+        error = insertError;
+      }
 
       if (error) throw error;
 
@@ -223,12 +284,26 @@ const BackgroundImageManager = () => {
         title: 'Sucesso',
         description: 'Imagem de fundo selecionada!',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error selecting image:', error);
+      
+      let errorMessage = 'Não foi possível selecionar a imagem.';
+      const errorStatus = error?.status || error?.statusCode || error?.code;
+      const errorMsg = error?.message || '';
+      
+      if (errorStatus === 409 || errorMsg.includes('409') || errorMsg.toLowerCase().includes('conflict')) {
+        errorMessage = 'Erro de conflito. Verifique se as políticas da tabela background_image_configs estão configuradas corretamente no Supabase.';
+      } else if (errorStatus === 403 || errorMsg.includes('403') || errorMsg.toLowerCase().includes('permission') || errorMsg.toLowerCase().includes('policy')) {
+        errorMessage = 'Permissão negada. A tabela background_image_configs requer políticas públicas. Execute o SQL em supabase/background-images.sql com políticas públicas.';
+      } else if (errorMsg) {
+        errorMessage = `Erro: ${errorMsg}`;
+      }
+      
       toast({
-        title: 'Erro',
-        description: 'Não foi possível selecionar a imagem.',
+        title: 'Erro ao Selecionar Imagem',
+        description: errorMessage,
         variant: 'destructive',
+        duration: 8000,
       });
     }
   };

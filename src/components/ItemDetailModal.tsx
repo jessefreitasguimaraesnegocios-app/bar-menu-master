@@ -1,7 +1,10 @@
-import { Droplets, Clock, Sparkles, Star } from 'lucide-react';
+import { Droplets, Clock, Sparkles, Star, ShoppingCart, Plus, Minus } from 'lucide-react';
 import { MenuItem } from '@/data/menuData';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useCart } from '@/contexts/CartContext';
+import { useState } from 'react';
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
@@ -10,7 +13,23 @@ interface ItemDetailModalProps {
 }
 
 const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
+  const { addItem, getItemQuantity, updateQuantity } = useCart();
+  const [quantity, setQuantity] = useState(1);
+  
   if (!item) return null;
+
+  const itemQuantity = getItemQuantity(item.id);
+  const hasItemInCart = itemQuantity > 0;
+
+  const handleAddToCart = () => {
+    addItem(item, quantity);
+    setQuantity(1);
+  };
+
+  const handleUpdateQuantity = (newQuantity: number) => {
+    if (newQuantity < 1) return;
+    updateQuantity(item.id, newQuantity);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -95,6 +114,75 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
               </p>
             </div>
           )}
+
+          {/* Add to Cart Section */}
+          <div className="pt-4 border-t border-border/50">
+            {hasItemInCart ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {itemQuantity} {itemQuantity === 1 ? 'item' : 'itens'} no carrinho
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 border rounded-lg">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => handleUpdateQuantity(itemQuantity - 1)}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-8 text-center font-medium">{itemQuantity}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10"
+                      onClick={() => handleUpdateQuantity(itemQuantity + 1)}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={() => handleUpdateQuantity(0)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Remover do Carrinho
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border rounded-lg w-fit">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-8 text-center font-medium">{quantity}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10"
+                    onClick={() => setQuantity(quantity + 1)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Button
+                  onClick={handleAddToCart}
+                  className="w-full"
+                  size="lg"
+                >
+                  <ShoppingCart className="mr-2 h-5 w-5" />
+                  Adicionar ao Carrinho
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

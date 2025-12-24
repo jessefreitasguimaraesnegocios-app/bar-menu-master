@@ -101,3 +101,4 @@ Para que tudo funcione, você precisa:
 - **Segurança:** Apenas usuários autenticados podem fazer alterações (RLS)
 - **Público:** Qualquer visitante pode ver os dados (políticas RLS configuradas)
 
+
