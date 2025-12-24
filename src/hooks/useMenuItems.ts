@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getSupabaseClient } from '@/lib/supabase';
 import type { MenuItem, Category } from '@/data/menuData';
 
@@ -7,7 +7,7 @@ export const useMenuItems = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     const client = getSupabaseClient();
     if (!client) {
       setError('Supabase não está conectado');
@@ -50,7 +50,7 @@ export const useMenuItems = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const addItem = async (item: Omit<MenuItem, 'id'>) => {
     const client = getSupabaseClient();
@@ -148,7 +148,14 @@ export const useMenuItems = () => {
 
   useEffect(() => {
     fetchItems();
-  }, []);
+    
+    // Polling automático a cada 5 segundos para sincronizar mudanças
+    const interval = setInterval(() => {
+      fetchItems();
+    }, 5000); // 5 segundos
+    
+    return () => clearInterval(interval);
+  }, [fetchItems]);
 
   return {
     items,

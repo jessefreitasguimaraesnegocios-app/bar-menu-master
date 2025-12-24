@@ -61,7 +61,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       password,
     });
 
-    if (error) throw error;
+    if (error) {
+      // Se o erro for de email não confirmado, tentar atualizar o usuário para confirmado
+      if (error.message.includes('Email not confirmed') || error.message.includes('email_not_confirmed')) {
+        // Tentar atualizar o usuário para confirmado via admin API (se disponível)
+        // Ou simplesmente permitir o login ignorando a confirmação
+        // Por enquanto, vamos mostrar uma mensagem mais útil
+        throw new Error('Email não confirmado. Confirme o email do usuário no dashboard do Supabase (Authentication → Users → Confirm email).');
+      }
+      throw error;
+    }
 
     // Verificar se o usuário é owner
     if (data.user?.user_metadata?.role !== 'owner') {

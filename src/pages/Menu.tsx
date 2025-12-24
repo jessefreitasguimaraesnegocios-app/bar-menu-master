@@ -6,12 +6,20 @@ import MenuCard from '@/components/MenuCard';
 import CategoryFilter from '@/components/CategoryFilter';
 import SearchBar from '@/components/SearchBar';
 import ItemDetailModal from '@/components/ItemDetailModal';
-import { menuItems, MenuItem, Category } from '@/data/menuData';
+import { useMenuItems } from '@/hooks/useMenuItems';
+import { MenuItem, Category } from '@/data/menuData';
+import { menuItems as fallbackMenuItems } from '@/data/menuData';
 
 const Menu = () => {
   const [activeCategory, setActiveCategory] = useState<Category | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  
+  // Buscar itens do Supabase (ou usar fallback se não estiver conectado)
+  const { items: supabaseItems, loading } = useMenuItems();
+  
+  // Usar itens do Supabase se disponíveis, senão usar fallback
+  const menuItems = supabaseItems.length > 0 ? supabaseItems : fallbackMenuItems;
 
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
@@ -24,7 +32,7 @@ const Menu = () => {
         );
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, menuItems]);
 
   return (
     <>
@@ -80,7 +88,17 @@ const Menu = () => {
 
           {/* Menu Grid */}
           <section className="container mx-auto px-4">
-            {filteredItems.length > 0 ? (
+            {loading && supabaseItems.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-16"
+              >
+                <p className="text-muted-foreground text-lg">
+                  Carregando cardápio...
+                </p>
+              </motion.div>
+            ) : filteredItems.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredItems.map((item, index) => (
                   <MenuCard
