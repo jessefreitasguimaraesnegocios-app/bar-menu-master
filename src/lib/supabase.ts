@@ -13,28 +13,37 @@ export const initializeSupabase = (url: string, anonKey: string): SupabaseClient
 };
 
 export const getSupabaseClient = (): SupabaseClient | null => {
-  if (!supabaseClient) {
-    // Prioridade 1: Variáveis de ambiente (recomendado)
-    const envUrl = import.meta.env.VITE_SUPABASE_URL;
-    const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (envUrl && envAnonKey) {
+  // Sempre tentar buscar das variáveis de ambiente primeiro (para produção)
+  const envUrl = import.meta.env.VITE_SUPABASE_URL;
+  const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  
+  // Se temos variáveis de ambiente, usar elas (prioridade máxima)
+  if (envUrl && envAnonKey) {
+    // Se já existe cliente mas com credenciais diferentes, recriar
+    if (!supabaseClient || 
+        (supabaseClient as any).supabaseUrl !== envUrl) {
       supabaseClient = createClient(envUrl, envAnonKey);
+    }
+    return supabaseClient;
+  }
+  
+  // Se já existe cliente criado, retornar
+  if (supabaseClient) {
+    return supabaseClient;
+  }
+  
+  // Fallback: localStorage (para conexão manual)
+  if (typeof window !== 'undefined') {
+    const savedUrl = localStorage.getItem('supabase_url');
+    const savedKey = localStorage.getItem('supabase_anon_key');
+    
+    if (savedUrl && savedKey) {
+      supabaseClient = createClient(savedUrl, savedKey);
       return supabaseClient;
     }
-    
-    // Prioridade 2: localStorage (fallback para conexão manual)
-    if (typeof window !== 'undefined') {
-      const savedUrl = localStorage.getItem('supabase_url');
-      const savedKey = localStorage.getItem('supabase_anon_key');
-      
-      if (savedUrl && savedKey) {
-        supabaseClient = createClient(savedUrl, savedKey);
-        return supabaseClient;
-      }
-    }
   }
-  return supabaseClient;
+  
+  return null;
 };
 
 export const isSupabaseConnected = (): boolean => {

@@ -10,7 +10,9 @@ export const useMenuItems = () => {
   const fetchItems = useCallback(async () => {
     const client = getSupabaseClient();
     if (!client) {
-      setError('Supabase não está conectado');
+      // Log para debug em produção
+      console.warn('Supabase não conectado. Verifique se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY estão configuradas na Vercel.');
+      setError('Supabase não está conectado. Configure as variáveis de ambiente na Vercel (veja VERCEL_SETUP.md)');
       setLoading(false);
       return;
     }
@@ -44,9 +46,16 @@ export const useMenuItems = () => {
       }));
 
       setItems(transformedItems);
+      console.log(`✅ Carregados ${transformedItems.length} itens do Supabase`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar itens');
-      console.error('Error fetching menu items:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar itens';
+      setError(errorMessage);
+      console.error('❌ Erro ao carregar itens do Supabase:', err);
+      
+      // Se for erro de política RLS, dar dica
+      if (err instanceof Error && err.message.includes('policy')) {
+        console.error('💡 Dica: Verifique se as políticas RLS estão configuradas corretamente no Supabase');
+      }
     } finally {
       setLoading(false);
     }
