@@ -1,7 +1,6 @@
-import { X, Droplets, Clock, Sparkles, Star } from 'lucide-react';
+import { Droplets, Clock, Sparkles, Star } from 'lucide-react';
 import { MenuItem } from '@/data/menuData';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 interface ItemDetailModalProps {
@@ -25,16 +24,6 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
-          
-          {/* Close Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="absolute top-4 right-4 bg-background/50 backdrop-blur-sm hover:bg-background/70 rounded-full"
-          >
-            <X className="h-5 w-5" />
-          </Button>
 
           {/* Badges */}
           <div className="absolute top-4 left-4 flex gap-2">
