@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
 const CartDrawer = () => {
-  const { items, updateQuantity, removeItem, getTotalPrice, getTotalItems, clearCart } = useCart();
+  const { items, updateQuantity, removeItem, getTotalPrice, getTotalItems, clearCart, isCartOpen, closeCart } = useCart();
   const { getCurrentBarId } = useBar();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -64,7 +64,7 @@ const CartDrawer = () => {
   };
 
   return (
-    <Sheet>
+    <Sheet open={isCartOpen} onOpenChange={(open) => open ? undefined : closeCart()}>
       <SheetTrigger asChild>
         <Button
           variant="ghost"
@@ -91,6 +91,14 @@ const CartDrawer = () => {
               ? `${totalItems} ${totalItems === 1 ? 'item' : 'itens'} no carrinho`
               : 'Seu carrinho está vazio'}
           </SheetDescription>
+          {items.length > 0 && (
+            <button
+              onClick={clearCart}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-2 text-left"
+            >
+              Limpar Carrinho
+            </button>
+          )}
         </SheetHeader>
 
         <div className="mt-6 space-y-4">
@@ -171,30 +179,20 @@ const CartDrawer = () => {
                   <span className="text-primary">R$ {totalPrice.toFixed(2)}</span>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={clearCart}
-                    disabled={items.length === 0}
-                  >
-                    Limpar Carrinho
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={handleCheckout}
-                    disabled={items.length === 0 || isProcessing}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processando...
-                      </>
-                    ) : (
-                      'Finalizar Pagamento'
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  className="w-full"
+                  onClick={handleCheckout}
+                  disabled={items.length === 0 || isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    'Finalizar Pagamento'
+                  )}
+                </Button>
               </div>
             </>
           )}

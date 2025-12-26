@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "strict": false,
+    "skipLibCheck": true,
+    "noImplicitAny": false
+  },
+  "exclude": []
+}
+

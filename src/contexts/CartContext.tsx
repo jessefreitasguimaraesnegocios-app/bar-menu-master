@@ -15,6 +15,9 @@ interface CartContextType {
   getTotalPrice: () => number;
   getTotalItems: () => number;
   getItemQuantity: (itemId: string) => number;
+  isCartOpen: boolean;
+  openCart: () => void;
+  closeCart: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -35,6 +38,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
     return [];
   });
+
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  const openCart = () => setIsCartOpen(true);
+  const closeCart = () => setIsCartOpen(false);
 
   // Salvar carrinho no localStorage sempre que mudar
   useEffect(() => {
@@ -106,6 +114,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         getTotalPrice,
         getTotalItems,
         getItemQuantity,
+        isCartOpen,
+        openCart,
+        closeCart,
       }}
     >
       {children}

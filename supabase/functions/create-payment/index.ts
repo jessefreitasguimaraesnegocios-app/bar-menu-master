@@ -89,11 +89,17 @@ serve(async (req) => {
     }
 
     // Criar mapa de preços dos itens
-    const itemsMap = new Map(menuItems.map((item) => [item.id, item]));
+    const itemsMap = new Map(
+      (menuItems as Array<{ id: string; name: string; price: number }>).map(
+        (item) => [item.id, item]
+      )
+    );
 
     // Preparar itens para a preferência do Mercado Pago
     const mpItems = items.map((item) => {
-      const menuItem = itemsMap.get(item.item_id);
+      const menuItem = itemsMap.get(item.item_id) as
+        | { id: string; name: string; price: number }
+        | undefined;
       if (!menuItem) {
         throw new Error(`Item ${item.item_id} não encontrado`);
       }

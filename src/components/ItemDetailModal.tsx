@@ -13,7 +13,7 @@ interface ItemDetailModalProps {
 }
 
 const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
-  const { addItem, getItemQuantity, updateQuantity } = useCart();
+  const { addItem, getItemQuantity, updateQuantity, openCart } = useCart();
   const [quantity, setQuantity] = useState(1);
   
   if (!item) return null;
@@ -143,11 +143,14 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
                     </Button>
                   </div>
                   <Button
-                    onClick={() => handleUpdateQuantity(0)}
+                    onClick={() => {
+                      onClose();
+                      openCart();
+                    }}
                     variant="outline"
                     className="flex-1"
                   >
-                    Remover do Carrinho
+                    Ver Carrinho
                   </Button>
                 </div>
               </div>
