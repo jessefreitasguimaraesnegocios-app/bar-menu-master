@@ -19,25 +19,33 @@ export const BarProvider = ({ children }: { children: ReactNode }) => {
     try {
       const supabase = getSupabaseClient();
       if (!supabase) {
-        console.warn('Supabase não está conectado');
+        console.warn('⚠️ Supabase não está conectado');
         return null;
       }
 
+      console.log('🔍 Buscando bar ativo no banco de dados...');
+      
       const { data, error } = await supabase
         .from('bars')
-        .select('id')
+        .select('id, name')
         .eq('is_active', true)
         .limit(1)
-        .single();
+        .maybeSingle(); // Usar maybeSingle ao invés de single para não dar erro se não encontrar
 
-      if (error || !data) {
-        console.warn('Nenhum bar ativo encontrado:', error?.message);
+      if (error) {
+        console.error('❌ Erro ao buscar bar:', error);
         return null;
       }
 
+      if (!data) {
+        console.warn('⚠️ Nenhum bar ativo encontrado no banco de dados');
+        return null;
+      }
+
+      console.log(`✅ Bar encontrado: ${data.name} (${data.id})`);
       return data.id;
     } catch (error) {
-      console.error('Erro ao buscar bar padrão:', error);
+      console.error('❌ Erro ao buscar bar padrão:', error);
       return null;
     }
   };
