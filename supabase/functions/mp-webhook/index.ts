@@ -57,9 +57,9 @@ serve(async (req) => {
     const paymentId = notification.data.id;
 
     // Obter credenciais do Mercado Pago
-    const mpAccessToken = Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
+    const mpAccessToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN") || Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
     if (!mpAccessToken) {
-      console.error("MP_ACCESS_TOKEN_MARKETPLACE não configurado");
+      console.error("MERCADO_PAGO_ACCESS_TOKEN não configurado");
       return new Response(
         JSON.stringify({ error: "Credenciais não configuradas" }),
         {

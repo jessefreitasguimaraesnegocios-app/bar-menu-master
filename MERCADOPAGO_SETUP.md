@@ -28,12 +28,14 @@ Execute o arquivo `supabase/orders.sql` no SQL Editor do Supabase para criar as 
 
 No Supabase Dashboard, vá em **Settings > Edge Functions > Secrets** e adicione:
 
-1. **MP_ACCESS_TOKEN_MARKETPLACE**: Access Token de produção do Mercado Pago (plataforma)
+1. **MERCADO_PAGO_ACCESS_TOKEN**: Access Token de produção do Mercado Pago (plataforma)
    - Exemplo: `APP_USR-xxxxx-xxxxxxxxxxxx`
+   - **Nota**: O código também aceita `MP_ACCESS_TOKEN_MARKETPLACE` como fallback
 
-2. **APP_URL**: URL base da aplicação (para back_urls)
+2. **APP_URL** (Opcional): URL base da aplicação (para back_urls)
    - Exemplo: `https://cardapio-bar.vercel.app`
    - Ou: `http://localhost:8080` (desenvolvimento)
+   - Se não configurado, usa `https://cardapio-bar.vercel.app` como padrão
 
 ## Passo 3: Deploy das Edge Functions
 

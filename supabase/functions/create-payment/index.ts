@@ -71,6 +71,27 @@ serve(async (req) => {
       );
     }
 
+    // Validar configurações do bar
+    if (!bar.mp_user_id) {
+      return new Response(
+        JSON.stringify({ error: "Bar não possui ID do Mercado Pago configurado." }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (bar.commission_rate === null || bar.commission_rate === undefined) {
+      return new Response(
+        JSON.stringify({ error: "Taxa de comissão não configurada para o bar." }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Buscar detalhes dos itens do menu
     const itemIds = items.map((item) => item.item_id);
     const { data: menuItems, error: menuItemsError } = await supabaseClient
@@ -97,22 +118,20 @@ serve(async (req) => {
 
     // Preparar itens para a preferência do Mercado Pago
     const mpItems = items.map((item) => {
-      const menuItem = itemsMap.get(item.item_id) as
-        | { id: string; name: string; price: number }
-        | undefined;
+      const menuItem = itemsMap.get(item.item_id);
       if (!menuItem) {
         throw new Error(`Item ${item.item_id} não encontrado`);
       }
       return {
         id: item.item_id,
-        title: menuItem.name,
+        title: menuItem.name as string,
         quantity: item.quantity,
-        unit_price: parseFloat(item.price.toFixed(2)),
+        unit_price: parseFloat(Number(item.price).toFixed(2)),
       };
     });
 
     // Obter credenciais do Mercado Pago
-    const mpAccessToken = Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
+    const mpAccessToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN") || Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
     if (!mpAccessToken) {
       return new Response(
         JSON.stringify({ error: "Credenciais do Mercado Pago não configuradas." }),
@@ -127,10 +146,14 @@ serve(async (req) => {
     const baseUrl = Deno.env.get("APP_URL") || "https://cardapio-bar.vercel.app";
 
     // Criar preferência no Mercado Pago com split payment
+    const commissionRate = Number(bar.commission_rate);
+    const barName = bar.name || "Bar";
+    const statementDescriptor = barName.length > 22 ? barName.substring(0, 22) : barName;
+    
     const preferenceData = {
       items: mpItems,
       marketplace: bar.mp_user_id, // ID do bar no Mercado Pago
-      marketplace_fee: parseFloat(bar.commission_rate.toFixed(4)), // Taxa de comissão (ex: 0.05 = 5%)
+      marketplace_fee: parseFloat(commissionRate.toFixed(4)), // Taxa de comissão (ex: 0.05 = 5%)
       back_urls: {
         success: `${baseUrl}/payment/success`,
         failure: `${baseUrl}/payment/failure`,
@@ -138,7 +161,7 @@ serve(async (req) => {
       },
       auto_return: "approved",
       notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mp-webhook`,
-      statement_descriptor: bar.name.substring(0, 22), // Máximo 22 caracteres
+      statement_descriptor: statementDescriptor, // Máximo 22 caracteres
     };
 
     const mpResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
@@ -168,9 +191,23 @@ serve(async (req) => {
       sandbox_init_point?: string;
     };
 
+    if (!preference.id || !preference.init_point) {
+      console.error("Resposta inválida do Mercado Pago:", preference);
+      return new Response(
+        JSON.stringify({ error: "Resposta inválida do Mercado Pago." }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Preparar dados do pedido para inserir no Supabase
     const orderItems = items.map((item) => {
       const menuItem = itemsMap.get(item.item_id);
+      if (!menuItem) {
+        throw new Error(`Item ${item.item_id} não encontrado no mapa`);
+      }
       return {
         item_id: item.item_id,
         quantity: item.quantity,
@@ -179,13 +216,14 @@ serve(async (req) => {
       };
     });
 
-    // Criar pedido diretamente
+    // Criar pedido já com mp_preference_id
     const { data: newOrder, error: orderInsertError } = await supabaseClient
       .from("orders")
       .insert({
         bar_id: bar_id,
         total_amount: total,
         status: "pending",
+        mp_preference_id: preference.id,
         customer_name: customer_name || null,
         customer_email: customer_email || null,
         customer_phone: customer_phone || null,
@@ -221,6 +259,7 @@ serve(async (req) => {
 
     if (itemsInsertError) {
       console.error("Erro ao inserir itens do pedido:", itemsInsertError);
+      // Limpar pedido criado em caso de erro
       await supabaseClient.from("orders").delete().eq("id", orderId);
       return new Response(
         JSON.stringify({ error: "Erro ao criar itens do pedido." }),
@@ -229,18 +268,6 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
-    }
-
-    // Atualizar pedido com mp_preference_id
-    const { error: updateError } = await supabaseClient
-      .from("orders")
-      .update({
-        mp_preference_id: preference.id,
-      })
-      .eq("id", orderId);
-
-    if (updateError) {
-      console.error("Erro ao atualizar pedido com preference_id:", updateError);
     }
 
     // Retornar dados da preferência
