@@ -1,4 +1,5 @@
-import { ShoppingCart, Plus, Minus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { ShoppingCart, Plus, Minus, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -9,14 +10,58 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { useCart } from '@/contexts/CartContext';
+import { useBar } from '@/contexts/BarContext';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { createPayment } from '@/services/paymentService';
+import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 const CartDrawer = () => {
   const { items, updateQuantity, removeItem, getTotalPrice, getTotalItems, clearCart } = useCart();
+  const { getCurrentBarId } = useBar();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const totalPrice = getTotalPrice();
   const totalItems = getTotalItems();
+
+  const handleCheckout = async () => {
+    const barId = getCurrentBarId();
+    
+    if (!barId) {
+      toast({
+        title: 'Erro',
+        description: 'Bar não identificado. Por favor, selecione um bar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (items.length === 0) {
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const paymentData = await createPayment(items, barId);
+      
+      // Redirecionar para o checkout do Mercado Pago
+      // Usar sandbox_init_point em desenvolvimento se disponível
+      const checkoutUrl = paymentData.sandbox_init_point || paymentData.init_point;
+      window.location.href = checkoutUrl;
+    } catch (error: any) {
+      console.error('Erro ao criar pagamento:', error);
+      toast({
+        title: 'Erro ao processar pagamento',
+        description: error.message || 'Não foi possível criar o pagamento. Tente novamente.',
+        variant: 'destructive',
+      });
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <Sheet>
@@ -137,13 +182,17 @@ const CartDrawer = () => {
                   </Button>
                   <Button
                     className="flex-1"
-                    onClick={() => {
-                      // Aqui você pode adicionar lógica para finalizar pedido
-                      alert('Funcionalidade de finalização de pedido será implementada em breve!');
-                    }}
-                    disabled={items.length === 0}
+                    onClick={handleCheckout}
+                    disabled={items.length === 0 || isProcessing}
                   >
-                    Finalizar Pedido
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      'Finalizar Pagamento'
+                    )}
                   </Button>
                 </div>
               </div>

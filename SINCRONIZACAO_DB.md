@@ -102,3 +102,4 @@ Para que tudo funcione, você precisa:
 - **Público:** Qualquer visitante pode ver os dados (políticas RLS configuradas)
 
 
+
