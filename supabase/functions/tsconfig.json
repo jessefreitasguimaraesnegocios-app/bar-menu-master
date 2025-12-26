@@ -1,10 +1,11 @@
 {
   "compilerOptions": {
-    "lib": ["deno.window"],
+    "lib": ["ES2020", "DOM"],
     "strict": false,
     "skipLibCheck": true,
-    "noImplicitAny": false
-  },
-  "exclude": []
+    "noImplicitAny": false,
+    "module": "ESNext",
+    "target": "ES2020"
+  }
 }
 

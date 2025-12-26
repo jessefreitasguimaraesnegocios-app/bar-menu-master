@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -162,7 +162,11 @@ serve(async (req) => {
       );
     }
 
-    const preference = await mpResponse.json();
+    const preference = await mpResponse.json() as {
+      id: string;
+      init_point: string;
+      sandbox_init_point?: string;
+    };
 
     // Preparar dados do pedido para inserir no Supabase
     const orderItems = items.map((item) => {
