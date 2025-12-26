@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 
 const CartDrawer = () => {
   const { items, updateQuantity, removeItem, getTotalPrice, getTotalItems, clearCart, isCartOpen, closeCart } = useCart();
-  const { getCurrentBarId } = useBar();
+  const { getCurrentBarId, isLoading: isLoadingBar } = useBar();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -28,12 +28,22 @@ const CartDrawer = () => {
   const totalItems = getTotalItems();
 
   const handleCheckout = async () => {
+    // Aguardar carregamento do bar_id
+    if (isLoadingBar) {
+      toast({
+        title: 'Aguarde',
+        description: 'Carregando informações do bar...',
+        variant: 'default',
+      });
+      return;
+    }
+
     const barId = getCurrentBarId();
     
     if (!barId) {
       toast({
         title: 'Erro',
-        description: 'Bar não identificado. Por favor, selecione um bar.',
+        description: 'Bar não identificado. Por favor, certifique-se de que há um bar ativo cadastrado.',
         variant: 'destructive',
       });
       return;

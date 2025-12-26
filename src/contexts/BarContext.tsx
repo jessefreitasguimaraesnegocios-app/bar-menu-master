@@ -1,32 +1,86 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { getSupabaseClient } from '@/lib/supabase';
 
 interface BarContextType {
   barId: string | null;
   setBarId: (barId: string | null) => void;
   getCurrentBarId: () => string | null;
+  isLoading: boolean;
 }
 
 const BarContext = createContext<BarContextType | undefined>(undefined);
 
 export const BarProvider = ({ children }: { children: ReactNode }) => {
-  // Tentar carregar bar_id do localStorage ou usar padrão
-  const [barId, setBarIdState] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      // Verificar se há bar_id na URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlBarId = urlParams.get('bar_id');
-      if (urlBarId) {
-        return urlBarId;
+  const [barId, setBarIdState] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Função para buscar o primeiro bar ativo do banco de dados
+  const fetchDefaultBar = async (): Promise<string | null> => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        console.warn('Supabase não está conectado');
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from('bars')
+        .select('id')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (error || !data) {
+        console.warn('Nenhum bar ativo encontrado:', error?.message);
+        return null;
+      }
+
+      return data.id;
+    } catch (error) {
+      console.error('Erro ao buscar bar padrão:', error);
+      return null;
+    }
+  };
+
+  // Inicializar bar_id
+  useEffect(() => {
+    const initializeBarId = async () => {
+      setIsLoading(true);
+      
+      if (typeof window !== 'undefined') {
+        // 1. Verificar se há bar_id na URL (tem prioridade máxima)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlBarId = urlParams.get('bar_id');
+        if (urlBarId) {
+          setBarIdState(urlBarId);
+          localStorage.setItem('bar_id', urlBarId);
+          setIsLoading(false);
+          return;
+        }
+        
+        // 2. Verificar localStorage
+        const savedBarId = localStorage.getItem('bar_id');
+        if (savedBarId) {
+          setBarIdState(savedBarId);
+          setIsLoading(false);
+          return;
+        }
       }
       
-      // Verificar localStorage
-      const savedBarId = localStorage.getItem('bar_id');
-      if (savedBarId) {
-        return savedBarId;
+      // 3. Buscar o primeiro bar ativo do banco de dados
+      const defaultBarId = await fetchDefaultBar();
+      if (defaultBarId) {
+        setBarIdState(defaultBarId);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('bar_id', defaultBarId);
+        }
       }
-    }
-    return null;
-  });
+      
+      setIsLoading(false);
+    };
+
+    initializeBarId();
+  }, []);
 
   const setBarId = (newBarId: string | null) => {
     setBarIdState(newBarId);
@@ -60,6 +114,7 @@ export const BarProvider = ({ children }: { children: ReactNode }) => {
       const urlBarId = urlParams.get('bar_id');
       if (urlBarId && urlBarId !== barId) {
         setBarIdState(urlBarId);
+        localStorage.setItem('bar_id', urlBarId);
       }
     }
   }, [barId]);
@@ -70,6 +125,7 @@ export const BarProvider = ({ children }: { children: ReactNode }) => {
         barId,
         setBarId,
         getCurrentBarId,
+        isLoading,
       }}
     >
       {children}
@@ -84,4 +140,6 @@ export const useBar = () => {
   }
   return context;
 };
+
+
 

@@ -77,27 +77,51 @@ supabase functions deploy mp-webhook
 
 ## Passo 5: Configurar Bar no Banco de Dados
 
-Insira um registro na tabela `bars`:
+**IMPORTANTE**: Você precisa criar pelo menos um bar no banco de dados para que o sistema funcione.
+
+### Opção 1: Usar Script SQL (Recomendado)
+
+Execute o arquivo `supabase/seed-bar.sql` no SQL Editor do Supabase:
+
+1. Abra o Supabase Dashboard
+2. Vá em **SQL Editor**
+3. Clique em **New Query**
+4. Cole o conteúdo de `supabase/seed-bar.sql`
+5. **Substitua `SEU_MP_USER_ID_AQUI` pelo ID real do Mercado Pago do bar**
+6. Execute o script
+
+### Opção 2: Inserir Manualmente
 
 ```sql
-INSERT INTO bars (id, name, mp_user_id, commission_rate, is_active)
+INSERT INTO bars (name, mp_user_id, commission_rate, is_active)
 VALUES (
-  'uuid-do-bar',
-  'Nome do Bar',
-  'APP_USR-xxxxx-xxxxxxxxxxxx', -- ID do Mercado Pago do bar
-  0.05, -- 5% de comissão
-  true
+  'Nome do Seu Bar',
+  'SEU_MP_USER_ID_AQUI', -- ID do Mercado Pago do bar (obrigatório)
+  0.05, -- 5% de comissão para a plataforma
+  true  -- Bar ativo
 );
 ```
 
-**Importante**: O `mp_user_id` deve ser o ID do vendedor (bar) no Mercado Pago, não o ID da aplicação.
+**Importante**: 
+- O `mp_user_id` deve ser o ID do vendedor (bar) no Mercado Pago, não o ID da aplicação
+- Para obter o `mp_user_id`: https://www.mercadopago.com.br/developers/panel/app/{APP_ID}/credentials
 
-## Passo 6: Configurar Bar ID no Frontend
+### Como o Sistema Busca o Bar
 
-O `bar_id` pode ser definido de três formas:
+O sistema busca automaticamente o primeiro bar ativo (`is_active = true`) do banco de dados na seguinte ordem:
 
-1. **Via URL**: `?bar_id=uuid-do-bar`
-2. **Via localStorage**: O sistema salva automaticamente
+1. **Prioridade 1**: `bar_id` na URL (`?bar_id=uuid-do-bar`)
+2. **Prioridade 2**: `bar_id` salvo no `localStorage`
+3. **Prioridade 3**: Primeiro bar ativo do banco de dados (busca automática)
+
+**Nota**: Se não houver nenhum bar cadastrado, você verá o erro "Bar não identificado" ao tentar finalizar um pagamento.
+
+## Passo 6: Configurar Bar ID no Frontend (Opcional)
+
+Se você quiser especificar um bar específico, pode fazer de três formas:
+
+1. **Via URL**: `?bar_id=uuid-do-bar` (tem prioridade máxima)
+2. **Via localStorage**: O sistema salva automaticamente quando um bar é usado
 3. **Via código**: Use o hook `useBar()` para definir programaticamente
 
 ```typescript
@@ -106,6 +130,8 @@ import { useBar } from '@/contexts/BarContext';
 const { setBarId } = useBar();
 setBarId('uuid-do-bar');
 ```
+
+**Recomendação**: Para a maioria dos casos, apenas crie um bar no banco de dados e deixe o sistema buscar automaticamente.
 
 ## Passo 7: Variáveis de Ambiente (Opcional)
 
@@ -237,4 +263,6 @@ Para testar, use as credenciais de teste do Mercado Pago:
 3. Criar dashboard de pedidos
 4. Implementar estorno de pagamentos
 5. Adicionar relatórios e analytics
+
+
 
