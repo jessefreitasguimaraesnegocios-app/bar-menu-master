@@ -4,12 +4,10 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import heroBackground from '@/assets/cantim-logo.png';
 import { useBackgroundImages } from '@/hooks/useBackgroundImages';
-import { useAuth } from '@/contexts/AuthContext';
 
 const HeroSection = () => {
   const { images } = useBackgroundImages();
   const backgroundImage = images.hero || heroBackground;
-  const { isOwner } = useAuth();
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -64,17 +62,15 @@ const HeroSection = () => {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            {isOwner && (
-              <Link to="/owner">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="border-border/50 hover:border-primary/50 hover:bg-primary/5 px-8 py-6 text-lg font-medium rounded-full"
-                >
-                  Portal do Dono
-                </Button>
-              </Link>
-            )}
+            <Link to="/owner">
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-border/50 hover:border-primary/50 hover:bg-primary/5 px-8 py-6 text-lg font-medium rounded-full"
+              >
+                Portal do Dono
+              </Button>
+            </Link>
           </div>
         </motion.div>
 

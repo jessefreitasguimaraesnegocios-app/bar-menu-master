@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,9 +57,9 @@ serve(async (req) => {
     const paymentId = notification.data.id;
 
     // Obter credenciais do Mercado Pago
-    const mpAccessToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN") || Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
+    const mpAccessToken = Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
     if (!mpAccessToken) {
-      console.error("MERCADO_PAGO_ACCESS_TOKEN não configurado");
+      console.error("MP_ACCESS_TOKEN_MARKETPLACE não configurado");
       return new Response(
         JSON.stringify({ error: "Credenciais não configuradas" }),
         {
@@ -89,16 +89,7 @@ serve(async (req) => {
       );
     }
 
-    const payment = await mpResponse.json() as {
-      id: number;
-      status: string;
-      preference_id: string;
-      payment_type_id: string;
-      transaction_amount: number;
-      fee_details?: Array<{ amount: number }>;
-      merchant_order_id?: number;
-      status_detail?: string;
-    };
+    const payment = await mpResponse.json();
 
     // Mapear status do Mercado Pago para status do nosso sistema
     const statusMap: Record<string, string> = {
@@ -152,8 +143,8 @@ serve(async (req) => {
     }
 
     // Calcular valores do split payment
-    const totalAmount = parseFloat(String(payment.transaction_amount));
-    const feeAmount = parseFloat(String(payment.fee_details?.reduce((sum: number, fee: { amount: number }) => sum + fee.amount, 0) || 0));
+    const totalAmount = parseFloat(payment.transaction_amount);
+    const feeAmount = parseFloat(payment.fee_details?.reduce((sum: number, fee: any) => sum + fee.amount, 0) || 0);
     
     // Buscar taxa de comissão do bar
     const { data: bar } = await supabaseClient

@@ -30,7 +30,8 @@ const OwnerPortal = () => {
             !!localStorage.getItem('supabase_anon_key'));
   });
 
-  const { items, loading, error, addItem, updateItem, deleteItem, refetch } = useMenuItems();
+  // Desabilitar polling no Portal do Dono para evitar piscadas na tela
+  const { items, loading, error, addItem, updateItem, deleteItem, refetch } = useMenuItems(false);
 
   // Try to initialize from localStorage on mount
   useEffect(() => {

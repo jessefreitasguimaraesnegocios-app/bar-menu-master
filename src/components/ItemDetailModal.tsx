@@ -1,4 +1,4 @@
-import { Droplets, Clock, Sparkles, Star, ShoppingCart, Plus, Minus } from 'lucide-react';
+import { Droplets, Clock, Sparkles, Star, ShoppingCart, Plus, Minus, X } from 'lucide-react';
 import { MenuItem } from '@/data/menuData';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,19 +18,6 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
   
   if (!item) return null;
 
-  const itemQuantity = getItemQuantity(item.id);
-  const hasItemInCart = itemQuantity > 0;
-
-  const handleAddToCart = () => {
-    addItem(item, quantity);
-    setQuantity(1);
-  };
-
-  const handleUpdateQuantity = (newQuantity: number) => {
-    if (newQuantity < 1) return;
-    updateQuantity(item.id, newQuantity);
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="glass border-border/50 max-w-2xl p-0 overflow-hidden">
@@ -43,6 +30,16 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
+          
+          {/* Close Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="absolute top-4 right-4 bg-background/50 backdrop-blur-sm hover:bg-background/70 rounded-full"
+          >
+            <X className="h-5 w-5" />
+          </Button>
 
           {/* Badges */}
           <div className="absolute top-4 left-4 flex gap-2">
@@ -114,78 +111,6 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
               </p>
             </div>
           )}
-
-          {/* Add to Cart Section */}
-          <div className="pt-4 border-t border-border/50">
-            {hasItemInCart ? (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  {itemQuantity} {itemQuantity === 1 ? 'item' : 'itens'} no carrinho
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 border rounded-lg">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-10"
-                      onClick={() => handleUpdateQuantity(itemQuantity - 1)}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-8 text-center font-medium">{itemQuantity}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-10"
-                      onClick={() => handleUpdateQuantity(itemQuantity + 1)}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      onClose();
-                      openCart();
-                    }}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Ver Carrinho
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 border rounded-lg w-fit">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="w-8 text-center font-medium">{quantity}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10"
-                    onClick={() => setQuantity(quantity + 1)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Button
-                  onClick={handleAddToCart}
-                  className="w-full"
-                  size="lg"
-                >
-                  <ShoppingCart className="mr-2 h-5 w-5" />
-                  Adicionar ao Carrinho
-                </Button>
-              </div>
-            )}
-          </div>
         </div>
       </DialogContent>
     </Dialog>

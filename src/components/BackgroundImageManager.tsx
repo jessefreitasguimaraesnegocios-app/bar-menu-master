@@ -1,133 +1,176 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, Loader2, Image as ImageIcon, Check, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ImagePlus, Loader2, CheckCircle2, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import ImageUploader from './ImageUploader';
 
 type BackgroundImageType = 'hero' | 'menu' | 'featured';
 
-interface BackgroundImage {
-  id: string;
+interface BackgroundImageConfig {
   type: BackgroundImageType;
-  url: string;
-  name: string;
-  created_at: string;
+  image_url: string;
 }
+
+const backgroundImageLabels: Record<BackgroundImageType, string> = {
+  hero: 'Página Inicial',
+  menu: 'Cardápio',
+  featured: 'Destaques',
+};
 
 const BackgroundImageManager = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [images, setImages] = useState<BackgroundImage[]>([]);
-  const [selectedType, setSelectedType] = useState<BackgroundImageType>('hero');
-  const [currentImages, setCurrentImages] = useState<Record<BackgroundImageType, string | null>>({
-    hero: null,
-    menu: null,
-    featured: null,
+  const [activeTab, setActiveTab] = useState<BackgroundImageType>('hero');
+  const [images, setImages] = useState<Record<BackgroundImageType, string>>({
+    hero: '',
+    menu: '',
+    featured: '',
   });
-  const [bucketError, setBucketError] = useState(false);
+  const [availableImages, setAvailableImages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingGallery, setLoadingGallery] = useState(false);
+  const [saving, setSaving] = useState<Record<BackgroundImageType, boolean>>({
+    hero: false,
+    menu: false,
+    featured: false,
+  });
+  const [showUpload, setShowUpload] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchImages();
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchImages();
+      fetchAvailableImages();
+    }
+  }, [isOpen]);
 
   const fetchImages = async () => {
     const client = getSupabaseClient();
-    if (!client) return;
+    if (!client) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      // Buscar imagens do storage
-      const { data: files, error } = await client.storage
+      const { data, error } = await client
+        .from('background_image_configs')
+        .select('*');
+
+      if (error) throw error;
+
+      const imageMap: Record<BackgroundImageType, string> = {
+        hero: '',
+        menu: '',
+        featured: '',
+      };
+
+      if (data) {
+        data.forEach((config: BackgroundImageConfig) => {
+          imageMap[config.type] = config.image_url || '';
+        });
+      }
+
+      setImages(imageMap);
+    } catch (error) {
+      console.error('Error fetching background images:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar as imagens de fundo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAvailableImages = async () => {
+    const client = getSupabaseClient();
+    if (!client) {
+      return;
+    }
+
+    setLoadingGallery(true);
+    try {
+      const imageUrls: string[] = [];
+      
+      // Buscar na raiz
+      const { data: rootData, error: rootError } = await client.storage
         .from('background-images')
         .list('', {
           limit: 100,
           sortBy: { column: 'created_at', order: 'desc' },
         });
 
-      if (error) throw error;
-
-      // Buscar configurações atuais
-      const { data: configs, error: configError } = await client
-        .from('background_image_configs')
-        .select('*');
-
-      if (!configError && configs) {
-        const configMap: Record<BackgroundImageType, string | null> = {
-          hero: null,
-          menu: null,
-          featured: null,
-        };
-        configs.forEach((config: any) => {
-          configMap[config.type as BackgroundImageType] = config.image_url;
-        });
-        setCurrentImages(configMap);
+      if (!rootError && rootData) {
+        for (const file of rootData) {
+          if (file.name && file.name.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+            const { data: urlData } = client.storage
+              .from('background-images')
+              .getPublicUrl(file.name);
+            
+            if (urlData?.publicUrl) {
+              imageUrls.push(urlData.publicUrl);
+            }
+          }
+        }
       }
 
-      // Transformar arquivos em BackgroundImage
-      const imageList: BackgroundImage[] = (files || []).map((file) => {
-        const { data: urlData } = client.storage
-          .from('background-images')
-          .getPublicUrl(file.name);
+      // Buscar em subpastas comuns
+      const folders = ['uploads', 'images', 'backgrounds'];
+      for (const folder of folders) {
+        try {
+          const { data: folderData } = await client.storage
+            .from('background-images')
+            .list(folder, {
+              limit: 100,
+              sortBy: { column: 'created_at', order: 'desc' },
+            });
 
-        return {
-          id: file.name, // Usar nome do arquivo como ID
-          type: 'hero' as BackgroundImageType, // Default, será atualizado
-          url: urlData.publicUrl,
-          name: file.name,
-          created_at: file.created_at || new Date().toISOString(),
-        };
-      });
+          if (folderData) {
+            for (const file of folderData) {
+              if (file.name && file.name.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+                const filePath = `${folder}/${file.name}`;
+                const { data: urlData } = client.storage
+                  .from('background-images')
+                  .getPublicUrl(filePath);
+                
+                if (urlData?.publicUrl) {
+                  imageUrls.push(urlData.publicUrl);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Ignorar erros de pastas que não existem
+        }
+      }
 
-      setImages(imageList);
-      setBucketError(false);
+      setAvailableImages(imageUrls);
     } catch (error: any) {
-      console.error('Error fetching images:', error);
-      
-      // Verificar se o erro é de bucket não encontrado
-      if (error?.message?.includes('Bucket not found') || error?.message?.includes('bucket')) {
-        setBucketError(true);
-      } else {
-        toast({
-          title: 'Erro',
-          description: 'Não foi possível carregar as imagens.',
-          variant: 'destructive',
-          duration: 6000,
-        });
+      console.error('Error fetching available images:', error);
+      // Se o bucket não existir, apenas não mostrar imagens
+      if (error?.message?.includes('Bucket not found')) {
+        setAvailableImages([]);
       }
+    } finally {
+      setLoadingGallery(false);
     }
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchImages();
-    }
-  }, [isOpen]);
+  const handleImageSelect = async (imageUrl: string) => {
+    await handleImageChange(activeTab, imageUrl);
+    setShowUpload(false);
+  };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validar tipo de arquivo
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: 'Erro',
-        description: 'Por favor, selecione um arquivo de imagem.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Validar tamanho (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: 'Erro',
-        description: 'A imagem deve ter no máximo 5MB.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setUploading(true);
+  const handleImageChange = async (type: BackgroundImageType, imageUrl: string) => {
     const client = getSupabaseClient();
     if (!client) {
       toast({
@@ -135,188 +178,63 @@ const BackgroundImageManager = () => {
         description: 'Supabase não está conectado.',
         variant: 'destructive',
       });
-      setUploading(false);
       return;
     }
 
+    setSaving((prev) => ({ ...prev, [type]: true }));
+
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${selectedType}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-      const filePath = fileName;
-
-      // Upload para Supabase Storage
-      const { error: uploadError } = await client.storage
-        .from('background-images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true, // Permite sobrescrever se o arquivo já existir
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Obter URL pública
-      const { data: urlData } = client.storage
-        .from('background-images')
-        .getPublicUrl(filePath);
-
-      // Salvar configuração - verificar se existe e fazer update ou insert
-      // Como 'type' é UNIQUE, precisamos tratar o caso de já existir
-      const { data: existingConfig } = await client
+      // Verificar se já existe uma configuração para este tipo
+      const { data: existing } = await client
         .from('background_image_configs')
         .select('id')
-        .eq('type', selectedType)
+        .eq('type', type)
         .single();
 
-      let configError;
-      if (existingConfig) {
-        // Se existe, fazer UPDATE
+      if (existing) {
+        // Atualizar existente
         const { error } = await client
           .from('background_image_configs')
-          .update({
-            image_url: urlData.publicUrl,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('type', selectedType);
-        configError = error;
+          .update({ image_url: imageUrl })
+          .eq('type', type);
+
+        if (error) throw error;
       } else {
-        // Se não existe, fazer INSERT
+        // Criar novo
         const { error } = await client
           .from('background_image_configs')
-          .insert({
-            type: selectedType,
-            image_url: urlData.publicUrl,
-            updated_at: new Date().toISOString(),
-          });
-        configError = error;
+          .insert({ type, image_url: imageUrl });
+
+        if (error) throw error;
       }
 
-      if (configError) throw configError;
+      setImages((prev) => ({ ...prev, [type]: imageUrl }));
+      
+      // Atualizar galeria após salvar
+      await fetchAvailableImages();
 
       toast({
         title: 'Sucesso',
-        description: 'Imagem de fundo atualizada com sucesso!',
+        description: `Imagem de fundo para ${backgroundImageLabels[type]} atualizada.`,
       });
-
-      await fetchImages();
     } catch (error: any) {
-      console.error('Error uploading image:', error);
-      
-      let errorMessage = 'Não foi possível fazer upload da imagem.';
-      
-      // Verificar tipo de erro específico
-      const errorStatus = error?.status || error?.statusCode;
-      const errorMsg = error?.message || '';
-      
-      if (errorStatus === 409 || errorMsg.includes('409') || errorMsg.toLowerCase().includes('conflict')) {
-        errorMessage = 'Arquivo já existe ou há conflito. Tente novamente ou verifique as políticas de storage no Supabase.';
-      } else if (errorMsg.includes('Bucket not found') || 
-                 errorMsg.includes('bucket') ||
-                 errorMsg.toLowerCase().includes('bucket not found')) {
-        setBucketError(true); // Ativar o alerta detalhado
-        errorMessage = 'Bucket "background-images" não encontrado. Por favor, crie o bucket no Supabase Storage primeiro. Veja as instruções abaixo.';
-      } else if (errorStatus === 403 || errorMsg.includes('403') || errorMsg.toLowerCase().includes('permission')) {
-        errorMessage = 'Permissão negada. Verifique se as políticas de storage estão configuradas corretamente no Supabase.';
-      } else if (errorMsg) {
-        errorMessage = `Erro: ${errorMsg}`;
-      }
-      
+      console.error('Error saving background image:', error);
       toast({
-        title: 'Erro no Upload',
-        description: errorMessage,
+        title: 'Erro',
+        description: error.message || 'Não foi possível salvar a imagem de fundo.',
         variant: 'destructive',
-        duration: 8000, // Mostrar por mais tempo
       });
     } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleSelectImage = async (url: string) => {
-    const client = getSupabaseClient();
-    if (!client) {
-      toast({
-        title: 'Erro',
-        description: 'Supabase não está conectado.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      // Verificar se existe configuração para este tipo
-      const { data: existingConfig } = await client
-        .from('background_image_configs')
-        .select('id')
-        .eq('type', selectedType)
-        .single();
-
-      let error;
-      if (existingConfig) {
-        // Se existe, fazer UPDATE
-        const { error: updateError } = await client
-          .from('background_image_configs')
-          .update({
-            image_url: url,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('type', selectedType);
-        error = updateError;
-      } else {
-        // Se não existe, fazer INSERT
-        const { error: insertError } = await client
-          .from('background_image_configs')
-          .insert({
-            type: selectedType,
-            image_url: url,
-            updated_at: new Date().toISOString(),
-          });
-        error = insertError;
-      }
-
-      if (error) throw error;
-
-      setCurrentImages((prev) => ({
-        ...prev,
-        [selectedType]: url,
-      }));
-
-      toast({
-        title: 'Sucesso',
-        description: 'Imagem de fundo selecionada!',
-      });
-    } catch (error: any) {
-      console.error('Error selecting image:', error);
-      
-      let errorMessage = 'Não foi possível selecionar a imagem.';
-      const errorStatus = error?.status || error?.statusCode || error?.code;
-      const errorMsg = error?.message || '';
-      
-      if (errorStatus === 409 || errorMsg.includes('409') || errorMsg.toLowerCase().includes('conflict')) {
-        errorMessage = 'Erro de conflito. Verifique se as políticas da tabela background_image_configs estão configuradas corretamente no Supabase.';
-      } else if (errorStatus === 403 || errorMsg.includes('403') || errorMsg.toLowerCase().includes('permission') || errorMsg.toLowerCase().includes('policy')) {
-        errorMessage = 'Permissão negada. A tabela background_image_configs requer políticas públicas. Execute o SQL em supabase/background-images.sql com políticas públicas.';
-      } else if (errorMsg) {
-        errorMessage = `Erro: ${errorMsg}`;
-      }
-      
-      toast({
-        title: 'Erro ao Selecionar Imagem',
-        description: errorMessage,
-        variant: 'destructive',
-        duration: 8000,
-      });
+      setSaving((prev) => ({ ...prev, [type]: false }));
     }
   };
 
   return (
     <>
-      <Card
-        className="glass border-border/50 hover:border-primary/30 transition-all duration-300 cursor-pointer"
-        onClick={() => setIsOpen(true)}
-      >
+      <Card className="glass border-border/50 hover:border-primary/30 transition-all duration-300 cursor-pointer" onClick={() => setIsOpen(true)}>
         <CardHeader>
           <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-            <ImageIcon className="w-6 h-6 text-primary" />
+            <ImagePlus className="w-6 h-6 text-primary" />
           </div>
           <CardTitle className="font-serif text-xl">Upload de Imagens</CardTitle>
           <CardDescription>
@@ -326,123 +244,130 @@ const BackgroundImageManager = () => {
       </Card>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="glass border-border/50 max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Gerenciar Imagens de Fundo</DialogTitle>
+            <DialogTitle className="font-serif text-2xl">Gerenciar Imagens de Fundo</DialogTitle>
             <DialogDescription>
               Faça upload e configure imagens de fundo para as páginas do site
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-6">
-            {/* Aviso de bucket não encontrado */}
-            {bucketError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Bucket não encontrado</AlertTitle>
-                <AlertDescription className="mt-2">
-                  O bucket "background-images" não existe no Supabase Storage. 
-                  <br />
-                  <strong>Para resolver:</strong>
-                  <ol className="list-decimal list-inside mt-2 space-y-1">
-                    <li>Acesse o dashboard do Supabase</li>
-                    <li>Vá em <strong>Storage</strong> no menu lateral</li>
-                    <li>Clique em <strong>New bucket</strong></li>
-                    <li>Nome: <strong>background-images</strong></li>
-                    <li>Marque como <strong>Público</strong></li>
-                    <li>Clique em <strong>Create bucket</strong></li>
-                  </ol>
-                  <p className="mt-2 text-sm">
-                    Veja instruções completas em: <code className="bg-muted px-1 rounded">supabase/BACKGROUND_IMAGES_SETUP.md</code>
-                  </p>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Seleção de tipo */}
-            <div>
-              <Label>Selecione a página</Label>
-              <div className="grid grid-cols-3 gap-4 mt-2">
-                {(['hero', 'menu', 'featured'] as BackgroundImageType[]).map((type) => (
-                  <Button
-                    key={type}
-                    variant={selectedType === type ? 'default' : 'outline'}
-                    onClick={() => setSelectedType(type)}
-                    className="capitalize"
-                  >
-                    {type === 'hero' ? 'Página Inicial' : type === 'menu' ? 'Cardápio' : 'Destaques'}
-                  </Button>
-                ))}
-              </div>
+          
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
+          ) : (
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as BackgroundImageType)} className="w-full mt-4">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="hero">{backgroundImageLabels.hero}</TabsTrigger>
+                <TabsTrigger value="menu">{backgroundImageLabels.menu}</TabsTrigger>
+                <TabsTrigger value="featured">{backgroundImageLabels.featured}</TabsTrigger>
+              </TabsList>
 
-            {/* Upload */}
-            <div>
-              <Label>Fazer upload de nova imagem</Label>
-              <div className="mt-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  className="hidden"
-                  id="background-upload"
-                />
-                <Button
-                  asChild
-                  disabled={uploading}
-                  className="w-full"
-                >
-                  <label htmlFor="background-upload" className="cursor-pointer">
-                    {uploading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Enviando...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="mr-2 h-4 w-4" />
+              {(Object.keys(images) as BackgroundImageType[]).map((type) => (
+                <TabsContent key={type} value={type} className="space-y-4 mt-6">
+                  {/* Imagem Atual */}
+                  {images[type] && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Imagem Atual</Label>
+                      <div className="relative rounded-lg overflow-hidden border border-border/50">
+                        <img
+                          src={images[type]}
+                          alt={`Imagem atual para ${backgroundImageLabels[type]}`}
+                          className="w-full h-48 object-cover"
+                        />
+                        <div className="absolute top-2 right-2 flex items-center gap-2 bg-background/80 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                          <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                          <span className="text-xs text-green-600 dark:text-green-400">Configurada</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botão de Upload */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Fazer upload de nova imagem</Label>
+                    {!showUpload ? (
+                      <Button
+                        onClick={() => setShowUpload(true)}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
                         Fazer Upload
-                      </>
-                    )}
-                  </label>
-                </Button>
-              </div>
-            </div>
-
-            {/* Lista de imagens */}
-            <div>
-              <Label>Imagens disponíveis</Label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2">
-                {images.map((image) => (
-                  <div
-                    key={image.id}
-                    className="relative group cursor-pointer rounded-lg overflow-hidden border-2 border-border hover:border-primary transition-all"
-                    onClick={() => handleSelectImage(image.url)}
-                  >
-                    <img
-                      src={image.url}
-                      alt={image.name}
-                      className="w-full h-32 object-cover"
-                    />
-                    {currentImages[selectedType] === image.url && (
-                      <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
-                        <Check className="w-4 h-4" />
+                      </Button>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">Upload de Imagem</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowUpload(false)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <ImageUploader
+                          value=""
+                          onChange={(url) => {
+                            handleImageSelect(url);
+                            setShowUpload(false);
+                          }}
+                          error={saving[type] ? 'Salvando...' : undefined}
+                          bucket="background-images"
+                          folder=""
+                        />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-white text-sm font-medium">Selecionar</span>
-                    </div>
                   </div>
-                ))}
-              </div>
-              {images.length === 0 && (
-                <p className="text-muted-foreground text-center py-8">
-                  Nenhuma imagem disponível. Faça upload de uma imagem para começar.
-                </p>
-              )}
-            </div>
-          </div>
+
+                  {/* Galeria de Imagens Disponíveis */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Imagens disponíveis</Label>
+                    {loadingGallery ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      </div>
+                    ) : availableImages.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {availableImages.map((imageUrl, index) => (
+                          <div
+                            key={index}
+                            className="relative group cursor-pointer rounded-lg overflow-hidden border-2 border-border/50 hover:border-primary transition-all"
+                            onClick={() => handleImageSelect(imageUrl)}
+                          >
+                            <img
+                              src={imageUrl}
+                              alt={`Imagem ${index + 1}`}
+                              className="w-full h-24 object-cover"
+                            />
+                            {images[type] === imageUrl && (
+                              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                <CheckCircle2 className="w-6 h-6 text-primary" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        Nenhuma imagem disponível. Faça upload de uma nova imagem.
+                      </div>
+                    )}
+                  </div>
+
+                  {saving[type] && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Salvando...</span>
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
+            </Tabs>
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -450,4 +375,3 @@ const BackgroundImageManager = () => {
 };
 
 export default BackgroundImageManager;
-

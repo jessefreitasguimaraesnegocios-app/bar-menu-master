@@ -11,9 +11,11 @@ interface ImageUploaderProps {
   value: string;
   onChange: (url: string) => void;
   error?: string;
+  bucket?: string;
+  folder?: string;
 }
 
-const ImageUploader = ({ value, onChange, error }: ImageUploaderProps) => {
+const ImageUploader = ({ value, onChange, error, bucket = 'menu-images', folder = 'menu-items' }: ImageUploaderProps) => {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(value || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,11 +40,11 @@ const ImageUploader = ({ value, onChange, error }: ImageUploaderProps) => {
     // Criar nome único para o arquivo
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
-    const filePath = `menu-items/${fileName}`;
+    const filePath = folder ? `${folder}/${fileName}` : fileName;
 
     // Upload para Supabase Storage
     const { data, error: uploadError } = await client.storage
-      .from('menu-images')
+      .from(bucket)
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false,
@@ -54,7 +56,7 @@ const ImageUploader = ({ value, onChange, error }: ImageUploaderProps) => {
 
     // Obter URL pública
     const { data: urlData } = client.storage
-      .from('menu-images')
+      .from(bucket)
       .getPublicUrl(filePath);
 
     return urlData.publicUrl;

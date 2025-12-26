@@ -8,7 +8,7 @@ interface BackgroundImageConfig {
   image_url: string;
 }
 
-export const useBackgroundImages = () => {
+export const useBackgroundImages = (enablePolling: boolean = false) => {
   const [images, setImages] = useState<Record<BackgroundImageType, string | null>>({
     hero: null,
     menu: null,
@@ -53,11 +53,18 @@ export const useBackgroundImages = () => {
 
     fetchImages();
 
-    // Polling a cada 10 segundos para atualizar
-    const interval = setInterval(fetchImages, 10000);
+    // Polling apenas se habilitado (útil para páginas públicas)
+    let interval: NodeJS.Timeout | null = null;
+    if (enablePolling) {
+      interval = setInterval(fetchImages, 30000); // 30 segundos (menos frequente)
+    }
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [enablePolling]);
 
   return { images, loading };
 };

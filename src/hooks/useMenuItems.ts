@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getSupabaseClient } from '@/lib/supabase';
 import type { MenuItem, Category } from '@/data/menuData';
 
-export const useMenuItems = () => {
+export const useMenuItems = (enablePolling: boolean = false) => {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -158,13 +158,20 @@ export const useMenuItems = () => {
   useEffect(() => {
     fetchItems();
     
-    // Polling automático a cada 5 segundos para sincronizar mudanças
-    const interval = setInterval(() => {
-      fetchItems();
-    }, 5000); // 5 segundos
+    // Polling apenas se habilitado (útil para páginas públicas)
+    let interval: NodeJS.Timeout | null = null;
+    if (enablePolling) {
+      interval = setInterval(() => {
+        fetchItems();
+      }, 30000); // 30 segundos (menos frequente)
+    }
     
-    return () => clearInterval(interval);
-  }, [fetchItems]);
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [fetchItems, enablePolling]);
 
   return {
     items,

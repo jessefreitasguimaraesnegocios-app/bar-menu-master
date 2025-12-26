@@ -1,22 +1,33 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface PaymentRequest {
-  bar_id: string;
+interface CreatePaymentRequest {
+  order_id: string;
   items: Array<{
-    item_id: string;
+    id: string;
+    title: string;
     quantity: number;
-    price: number;
+    unit_price: number;
   }>;
-  total: number;
-  customer_name?: string;
-  customer_email?: string;
-  customer_phone?: string;
+  payer?: {
+    name?: string;
+    email?: string;
+    phone?: {
+      area_code?: string;
+      number?: string;
+    };
+  };
+  back_urls?: {
+    success?: string;
+    failure?: string;
+    pending?: string;
+  };
+  auto_return?: "approved" | "all";
 }
 
 serve(async (req) => {
@@ -38,32 +49,53 @@ serve(async (req) => {
       }
     );
 
-    // Obter dados da requisição
-    const paymentData: PaymentRequest = await req.json();
-    const { bar_id, items, total, customer_name, customer_email, customer_phone } = paymentData;
+    const body: CreatePaymentRequest = await req.json();
+    const { order_id, items, payer, back_urls, auto_return } = body;
 
-    // Validar dados
-    if (!bar_id || !items || items.length === 0 || !total || total <= 0) {
+    // Obter credenciais do Mercado Pago
+    const mpAccessToken = Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
+    if (!mpAccessToken) {
+      console.error("MP_ACCESS_TOKEN_MARKETPLACE não configurado");
       return new Response(
-        JSON.stringify({ error: "Dados inválidos. bar_id, items e total são obrigatórios." }),
+        JSON.stringify({ error: "Credenciais não configuradas" }),
         {
-          status: 400,
+          status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    // Buscar informações do bar
-    const { data: bar, error: barError } = await supabaseClient
-      .from("bars")
-      .select("id, name, mp_user_id, commission_rate")
-      .eq("id", bar_id)
-      .eq("is_active", true)
+    // Verificar se o access token é de produção ou teste
+    // Tokens de produção começam com "APP_USR-" e tokens de teste começam com "TEST-"
+    const isProductionToken = mpAccessToken.startsWith("APP_USR-");
+    const isTestToken = mpAccessToken.startsWith("TEST-");
+    
+    if (!isProductionToken && !isTestToken) {
+      console.warn("⚠️ Formato de token não reconhecido. Verifique se é um token válido do Mercado Pago");
+    }
+    
+    if (isTestToken) {
+      console.warn("⚠️ ATENÇÃO: Usando token de TESTE (sandbox). Para produção, use um token que comece com 'APP_USR-'");
+    } else if (isProductionToken) {
+      console.log("✅ Usando token de PRODUÇÃO");
+    }
+
+    // Buscar informações do pedido no Supabase
+    const { data: order, error: orderError } = await supabaseClient
+      .from("orders")
+      .select(`
+        *,
+        bars:bar_id (
+          mp_user_id
+        )
+      `)
+      .eq("id", order_id)
       .single();
 
-    if (barError || !bar) {
+    if (orderError || !order) {
+      console.error("Pedido não encontrado:", orderError);
       return new Response(
-        JSON.stringify({ error: "Bar não encontrado ou inativo." }),
+        JSON.stringify({ error: "Pedido não encontrado" }),
         {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -71,10 +103,10 @@ serve(async (req) => {
       );
     }
 
-    // Validar configurações do bar
-    if (!bar.mp_user_id) {
+    const mpUserId = (order.bars as any)?.mp_user_id;
+    if (!mpUserId) {
       return new Response(
-        JSON.stringify({ error: "Bar não possui ID do Mercado Pago configurado." }),
+        JSON.stringify({ error: "Bar não possui MP_USER_ID configurado" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -82,102 +114,49 @@ serve(async (req) => {
       );
     }
 
-    if (bar.commission_rate === null || bar.commission_rate === undefined) {
-      return new Response(
-        JSON.stringify({ error: "Taxa de comissão não configurada para o bar." }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Buscar detalhes dos itens do menu
-    const itemIds = items.map((item) => item.item_id);
-    const { data: menuItems, error: menuItemsError } = await supabaseClient
-      .from("menu_items")
-      .select("id, name, price")
-      .in("id", itemIds);
-
-    if (menuItemsError || !menuItems || menuItems.length !== items.length) {
-      return new Response(
-        JSON.stringify({ error: "Erro ao buscar itens do menu." }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Criar mapa de preços dos itens
-    const itemsMap = new Map(
-      (menuItems as Array<{ id: string; name: string; price: number }>).map(
-        (item) => [item.id, item]
-      )
-    );
-
-    // Preparar itens para a preferência do Mercado Pago
-    const mpItems = items.map((item) => {
-      const menuItem = itemsMap.get(item.item_id);
-      if (!menuItem) {
-        throw new Error(`Item ${item.item_id} não encontrado`);
-      }
-      return {
-        id: item.item_id,
-        title: menuItem.name as string,
+    // Criar preferência de pagamento no Mercado Pago
+    // IMPORTANTE: Não especificar sandbox aqui - o access token determina o ambiente
+    const preferenceData: any = {
+      items: items.map((item) => ({
+        id: item.id,
+        title: item.title,
         quantity: item.quantity,
-        unit_price: parseFloat(Number(item.price).toFixed(2)),
-      };
-    });
-
-    // Obter credenciais do Mercado Pago
-    const mpAccessToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN") || Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
-    if (!mpAccessToken) {
-      return new Response(
-        JSON.stringify({ error: "Credenciais do Mercado Pago não configuradas." }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // URL base da aplicação (para back_urls)
-    const baseUrl = Deno.env.get("APP_URL") || "https://cardapio-bar.vercel.app";
-
-    // Criar preferência no Mercado Pago com split payment
-    const commissionRate = Number(bar.commission_rate);
-    const barName = bar.name || "Bar";
-    const statementDescriptor = barName.length > 22 ? barName.substring(0, 22) : barName;
-    
-    const preferenceData = {
-      items: mpItems,
-      marketplace: bar.mp_user_id, // ID do bar no Mercado Pago
-      marketplace_fee: parseFloat(commissionRate.toFixed(4)), // Taxa de comissão (ex: 0.05 = 5%)
-      back_urls: {
-        success: `${baseUrl}/payment/success`,
-        failure: `${baseUrl}/payment/failure`,
-        pending: `${baseUrl}/payment/pending`,
-      },
-      auto_return: "approved",
+        unit_price: item.unit_price,
+        currency_id: "BRL",
+      })),
+      payer: payer || {},
+      back_urls: back_urls || {},
+      auto_return: auto_return || "approved",
       notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mp-webhook`,
-      statement_descriptor: statementDescriptor, // Máximo 22 caracteres
+      statement_descriptor: "Cantim",
+      external_reference: order_id,
     };
 
+    // Se houver URLs de retorno, adicionar
+    if (back_urls) {
+      preferenceData.back_urls = back_urls;
+    }
+
+    // Criar preferência usando a API do Mercado Pago
+    // A URL da API determina o ambiente: api.mercadopago.com = produção
     const mpResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${mpAccessToken}`,
+        // IMPORTANTE: Não adicionar header de sandbox aqui
       },
       body: JSON.stringify(preferenceData),
     });
 
     if (!mpResponse.ok) {
       const errorText = await mpResponse.text();
-      console.error("Erro ao criar preferência no Mercado Pago:", errorText);
+      console.error("Erro ao criar preferência no MP:", errorText);
       return new Response(
-        JSON.stringify({ error: "Erro ao criar pagamento no Mercado Pago." }),
+        JSON.stringify({ 
+          error: "Erro ao criar preferência de pagamento",
+          details: errorText 
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -185,56 +164,30 @@ serve(async (req) => {
       );
     }
 
-    const preference = await mpResponse.json() as {
-      id: string;
-      init_point: string;
-      sandbox_init_point?: string;
-    };
+    const preference = await mpResponse.json();
 
-    if (!preference.id || !preference.init_point) {
-      console.error("Resposta inválida do Mercado Pago:", preference);
-      return new Response(
-        JSON.stringify({ error: "Resposta inválida do Mercado Pago." }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Preparar dados do pedido para inserir no Supabase
-    const orderItems = items.map((item) => {
-      const menuItem = itemsMap.get(item.item_id);
-      if (!menuItem) {
-        throw new Error(`Item ${item.item_id} não encontrado no mapa`);
-      }
-      return {
-        item_id: item.item_id,
-        quantity: item.quantity,
-        price: item.price,
-        subtotal: item.price * item.quantity,
-      };
-    });
-
-    // Criar pedido já com mp_preference_id
-    const { data: newOrder, error: orderInsertError } = await supabaseClient
+    // Atualizar pedido com preference_id
+    const { error: updateError } = await supabaseClient
       .from("orders")
-      .insert({
-        bar_id: bar_id,
-        total_amount: total,
-        status: "pending",
+      .update({
         mp_preference_id: preference.id,
-        customer_name: customer_name || null,
-        customer_email: customer_email || null,
-        customer_phone: customer_phone || null,
+        updated_at: new Date().toISOString(),
       })
-      .select("id")
-      .single();
+      .eq("id", order_id);
 
-    if (orderInsertError || !newOrder) {
-      console.error("Erro ao criar pedido:", orderInsertError);
+    if (updateError) {
+      console.error("Erro ao atualizar pedido:", updateError);
+    }
+
+    // Retornar dados da preferência (incluindo init_point)
+    // IMPORTANTE: Sempre usar init_point para produção
+    // Se init_point existir, é produção. Se não existir mas sandbox_init_point existir, é sandbox
+    const checkoutUrl = preference.init_point || preference.sandbox_init_point;
+    
+    if (!checkoutUrl) {
+      console.error("Nenhum init_point retornado pelo Mercado Pago");
       return new Response(
-        JSON.stringify({ error: "Erro ao criar pedido no banco de dados." }),
+        JSON.stringify({ error: "Erro ao obter URL de checkout" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -242,41 +195,17 @@ serve(async (req) => {
       );
     }
 
-    const orderId = newOrder.id;
-
-    // Inserir itens do pedido
-    const orderItemsData = orderItems.map((item) => ({
-      order_id: orderId,
-      menu_item_id: item.item_id,
-      quantity: item.quantity,
-      price: item.price,
-      subtotal: item.subtotal,
-    }));
-
-    const { error: itemsInsertError } = await supabaseClient
-      .from("order_items")
-      .insert(orderItemsData);
-
-    if (itemsInsertError) {
-      console.error("Erro ao inserir itens do pedido:", itemsInsertError);
-      // Limpar pedido criado em caso de erro
-      await supabaseClient.from("orders").delete().eq("id", orderId);
-      return new Response(
-        JSON.stringify({ error: "Erro ao criar itens do pedido." }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+    // Verificar se está usando sandbox (aviso)
+    if (preference.sandbox_init_point && !preference.init_point) {
+      console.warn("⚠️ ATENÇÃO: Usando SANDBOX! Verifique se MP_ACCESS_TOKEN_MARKETPLACE é de PRODUÇÃO");
     }
 
-    // Retornar dados da preferência
     return new Response(
       JSON.stringify({
         preference_id: preference.id,
-        init_point: preference.init_point,
-        sandbox_init_point: preference.sandbox_init_point,
-        order_id: orderId,
+        init_point: checkoutUrl,
+        is_sandbox: !preference.init_point && !!preference.sandbox_init_point,
+        // Retornar apenas a URL correta (produção ou sandbox)
       }),
       {
         status: 200,
@@ -284,9 +213,9 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("Erro na função create-payment:", error);
+    console.error("Erro ao criar pagamento:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Erro interno do servidor." }),
+      JSON.stringify({ error: error.message || "Erro interno do servidor" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

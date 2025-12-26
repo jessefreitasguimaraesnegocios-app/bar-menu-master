@@ -90,3 +90,7 @@ Sem elas, o app não consegue conectar ao Supabase e usa apenas dados estáticos
 
 
 
+
+
+
+
