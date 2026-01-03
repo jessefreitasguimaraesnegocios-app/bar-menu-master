@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Wine, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import CartButton from '@/components/CartButton';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -65,10 +66,11 @@ const Header = () => {
                 onClick={signOut}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <LogOut className="h-4 w-4 mr-2" />
-                Sair
-              </Button>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sair
+            </Button>
             )}
+            <CartButton />
           </nav>
 
           {/* Mobile Menu Button */}

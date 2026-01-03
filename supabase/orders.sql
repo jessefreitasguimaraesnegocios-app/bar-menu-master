@@ -15,16 +15,27 @@
 CREATE TABLE IF NOT EXISTS bars (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(255) NOT NULL,
-  mp_user_id VARCHAR(255) NOT NULL, -- ID do Mercado Pago do bar
+  slug VARCHAR(255) NOT NULL UNIQUE,
+  mp_user_id VARCHAR(255), -- ID do Mercado Pago do bar
   commission_rate DECIMAL(5, 4) NOT NULL DEFAULT 0.05 CHECK (commission_rate >= 0 AND commission_rate <= 1),
-  is_active BOOLEAN DEFAULT TRUE,
+  active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Índice para busca rápida
 CREATE INDEX IF NOT EXISTS idx_bars_mp_user_id ON bars(mp_user_id);
-CREATE INDEX IF NOT EXISTS idx_bars_is_active ON bars(is_active);
+CREATE INDEX IF NOT EXISTS idx_bars_active ON bars(active);
+CREATE INDEX IF NOT EXISTS idx_bars_slug ON bars(slug);
+
+-- ============================================
+-- TABELA: platform_settings (Configurações da Plataforma)
+-- ============================================
+CREATE TABLE IF NOT EXISTS platform_settings (
+  id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  commission_rate DECIMAL(5, 4) NOT NULL DEFAULT 0.05 CHECK (commission_rate >= 0 AND commission_rate <= 1),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Trigger para atualizar updated_at
 CREATE TRIGGER update_bars_updated_at
@@ -38,7 +49,37 @@ ALTER TABLE bars ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Bars are viewable by everyone"
   ON bars
   FOR SELECT
-  USING (is_active = TRUE);
+  USING (active = TRUE);
+
+CREATE POLICY "Authenticated users can insert bars"
+  ON bars
+  FOR INSERT
+  WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can update bars"
+  ON bars
+  FOR UPDATE
+  USING (auth.role() = 'authenticated')
+  WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated users can delete bars"
+  ON bars
+  FOR DELETE
+  USING (auth.role() = 'authenticated');
+
+-- RLS para platform_settings
+ALTER TABLE platform_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Platform settings are viewable by everyone"
+  ON platform_settings
+  FOR SELECT
+  USING (true);
+
+CREATE POLICY "Authenticated users can update platform settings"
+  ON platform_settings
+  FOR ALL
+  USING (auth.role() = 'authenticated')
+  WITH CHECK (auth.role() = 'authenticated');
 
 -- ============================================
 -- ENUM: Status do Pedido
