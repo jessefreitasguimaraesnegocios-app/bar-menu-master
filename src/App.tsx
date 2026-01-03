@@ -7,11 +7,13 @@ import { HelmetProvider } from "react-helmet-async";
 import { CartProvider } from "@/contexts/CartContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import CartDrawer from "@/components/CartDrawer";
+import AdminRoute from "@/components/AdminRoute";
 import Index from "./pages/Index";
 import Menu from "./pages/Menu";
 import Login from "./pages/Login";
 import OwnerPortal from "./pages/OwnerPortal";
 import Admin from "./pages/Admin";
+import BarMenu from "./pages/BarMenu";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,7 +33,8 @@ const App = () => (
                 <Route path="/menu" element={<Menu />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/owner" element={<OwnerPortal />} />
-                <Route path="/admin" element={<Admin />} />
+                <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+                <Route path="/bar/:slug" element={<BarMenu />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
