@@ -1,123 +1,135 @@
-# Configuração do Banco de Dados Supabase
+# 📚 Documentação do Banco de Dados - Cardápio Cantim
 
-Este diretório contém os arquivos SQL necessários para configurar o banco de dados do sistema de cardápio.
+## 🚀 Primeiros Passos
 
-## 📋 Arquivos
+**👉 Comece aqui:** Leia o [Guia de Configuração do Supabase](CONFIG.md) para configurar tudo no dashboard.
 
-- `schema.sql` - Schema completo do banco de dados com tabelas, políticas de segurança e funções
-- `storage.sql` - Configuração do bucket de storage para imagens do cardápio
-- `seed.sql` - Dados iniciais para popular o banco de dados
-- `check-schema.sql` - Script de verificação para validar se tudo foi criado corretamente
+## 📋 Arquivos SQL
 
-## 🚀 Como Usar
+Execute os arquivos na seguinte ordem:
 
-### 1. Acesse o Supabase Dashboard
+### 1. `01_schema.sql`
+Schema principal com tabela `menu_items`, ENUMs, funções e views.
+- Cria estrutura básica do cardápio
+- Configura RLS (Row Level Security)
+- Cria views e funções auxiliares
 
-1. Faça login no [Supabase Dashboard](https://app.supabase.com)
-2. Selecione seu projeto
-3. Vá para **SQL Editor** no menu lateral
+### 2. `02_orders.sql`
+Schema de pedidos e pagamentos (Mercado Pago).
+- Tabelas: `bars`, `orders`, `order_items`, `payments`
+- ENUMs para status
+- Adiciona foreign key `bar_id` em `menu_items`
+- Funções e views para gestão de pedidos
 
-### 2. Execute o Schema
+### 3. `03_background-images.sql`
+Schema para imagens de fundo.
+- Tabela `background_image_configs`
+- Função para upsert de configurações
 
-1. Clique em **New Query**
-2. Abra o arquivo `schema.sql`
-3. Cole todo o conteúdo no editor
-4. Clique em **Run** ou pressione `Ctrl+Enter` (Windows) / `Cmd+Enter` (Mac)
+### 4. `04_storage.sql`
+Configuração de buckets do Supabase Storage.
+- Bucket `menu-images` (imagens do cardápio)
+- Bucket `background-images` (imagens de fundo)
+- Políticas de acesso
 
-### 3. Configure o Storage (Obrigatório para upload de imagens)
+### 5. `05_seed.sql` (Opcional)
+Dados iniciais de exemplo.
+- Popula o banco com itens de exemplo
+- Execute apenas se desejar dados de teste
 
-1. Execute o arquivo `storage.sql` no SQL Editor
-2. Isso criará o bucket `menu-images` com as políticas de segurança necessárias
-3. O bucket será público para leitura, mas apenas usuários autenticados podem fazer upload
+### 6. `add_bars_insert_policy.sql` (Opcional, mas recomendado)
+Política RLS para cadastro de estabelecimentos.
+- Permite que usuários autenticados cadastrem novos estabelecimentos
+- Necessário para usar a página `/cadastro`
+- Execute após o `02_orders.sql`
 
-### 4. (Opcional) Inserir Dados Iniciais
+### 7. `fix_security_definer_views.sql` (Recomendado)
+Corrige problemas de segurança nas views.
+- Converte views de SECURITY DEFINER para SECURITY INVOKER
+- Resolve alertas do Security Advisor do Supabase
+- Execute após os scripts principais
 
-Se você quiser popular o banco com dados de exemplo:
+### 8. `check-schema.sql` (Opcional)
+Script de verificação.
+- Verifica se todas as tabelas, políticas e funções foram criadas corretamente
+- Útil para debugging
 
-1. Execute o arquivo `seed.sql` no SQL Editor
-2. Isso inserirá todos os itens de exemplo do cardápio
+## 🚀 Como Executar
 
-### 5. (Opcional) Verificar Schema
+1. Acesse o **Supabase Dashboard** → **SQL Editor**
+2. Execute os arquivos na ordem numérica (01, 02, 03, 04, 05)
+3. Execute `add_bars_insert_policy.sql` se quiser usar a página de cadastro
+4. Opcionalmente, execute `check-schema.sql` para verificar
 
-Para verificar se tudo foi criado corretamente:
+## ⚙️ Configuração Necessária
 
-1. Execute o arquivo `check-schema.sql` no SQL Editor
-2. Isso mostrará o status de todas as tabelas, políticas, índices e funções
+### Variáveis de Ambiente no Supabase
 
-## 📊 Estrutura do Banco
+Configure no **Settings** → **Edge Functions** → **Secrets**:
 
-### Tabela: `menu_items`
+- `MP_ACCESS_TOKEN_MARKETPLACE`: Access Token do Mercado Pago Marketplace
 
-Campos principais:
-- `id` - UUID (chave primária)
-- `name` - Nome do item
-- `description` - Descrição detalhada
-- `price` - Preço (DECIMAL)
-- `category` - Categoria (ENUM)
-- `image` - URL da imagem
-- `ingredients` - Array de ingredientes
-- `preparation` - Instruções de preparo
-- `abv` - Teor alcoólico (opcional)
-- `is_popular` - Item popular
-- `is_new` - Item novo
-- `is_active` - Item ativo (para soft delete)
-- `created_at` / `updated_at` - Timestamps automáticos
+### Tabela bars
 
-### Categorias Disponíveis
+Crie um registro na tabela `bars` com:
+- `name`: Nome do bar/restaurante
+- `mp_user_id`: ID do usuário no Mercado Pago (para split automático)
+- `commission_rate`: Taxa de comissão (ex: 0.05 para 5%)
 
-- `cocktails` - Coquetéis
-- `beers` - Cervejas
-- `wines` - Vinhos
-- `spirits` - Destilados
-- `appetizers` - Entradas
-- `mains` - Pratos Principais
+Exemplo:
+```sql
+INSERT INTO bars (name, mp_user_id, commission_rate)
+VALUES ('Meu Bar', '000117434618860', 0.05);
+```
+
+### Associar menu_items a bars
+
+Após criar um bar, associe os itens do menu:
+
+```sql
+UPDATE menu_items
+SET bar_id = (SELECT id FROM bars LIMIT 1)
+WHERE bar_id IS NULL;
+```
+
+## 📁 Estrutura das Tabelas
+
+### menu_items
+Itens do cardápio (bebidas, pratos, etc.)
+
+### bars
+Bares/restaurantes configurados
+
+### orders
+Pedidos dos clientes
+
+### order_items
+Itens de cada pedido
+
+### payments
+Registros de pagamentos do Mercado Pago
+
+### background_image_configs
+Configurações de imagens de fundo (hero, menu, featured)
 
 ## 🔒 Segurança (RLS)
 
-O schema implementa Row Level Security (RLS) com as seguintes políticas:
+- **menu_items**: Público pode ler (apenas ativos), autenticados podem modificar
+- **orders/order_items/payments**: Público (pode ser ajustado conforme necessidade)
+- **background_image_configs**: Público (pode ler e modificar)
+- **bars**: Público pode ler (apenas ativos), autenticados podem inserir/atualizar (se executar `add_bars_insert_policy.sql`)
 
-- **SELECT**: Qualquer pessoa pode ler itens ativos
-- **INSERT**: Apenas usuários autenticados
-- **UPDATE**: Apenas usuários autenticados
-- **DELETE**: Apenas usuários autenticados (soft delete)
+## 🛠️ Edge Functions
 
-## 🔧 Funcionalidades
+### create-payment
+Cria preferência de pagamento no Mercado Pago.
 
-- ✅ Soft Delete (itens são marcados como inativos)
-- ✅ Timestamps automáticos
-- ✅ Índices para performance
-- ✅ View para consultas simplificadas
-- ✅ Validações de dados (CHECK constraints)
+### mp-webhook
+Recebe notificações do Mercado Pago e atualiza status dos pedidos.
 
-## 📝 Próximos Passos
+## 📝 Notas Importantes
 
-Após executar o schema:
-
-1. Execute o `storage.sql` para configurar o bucket de imagens
-2. Configure autenticação no Supabase (se ainda não fez)
-3. Teste a conexão através do Portal do Dono
-4. Comece a adicionar/editar itens do cardápio com upload de imagens
-
-## 📸 Upload de Imagens
-
-O sistema suporta três formas de adicionar imagens:
-
-1. **Galeria**: Escolher uma imagem do dispositivo
-2. **Câmera**: Tirar uma foto diretamente
-3. **URL**: Inserir uma URL de imagem externa
-
-As imagens enviadas pela galeria ou câmera são armazenadas no Supabase Storage no bucket `menu-images`.
-
-## 🐛 Troubleshooting
-
-### Erro: "extension uuid-ossp does not exist"
-- Execute: `CREATE EXTENSION IF NOT EXISTS "uuid-ossp";` manualmente
-
-### Erro: "relation auth.users does not exist"
-- Isso é normal se você ainda não configurou autenticação
-- As referências a `auth.users` são opcionais e funcionarão quando você habilitar autenticação
-
-### Políticas RLS bloqueando acesso
-- Verifique se você está autenticado ao fazer operações de escrita
-- Ajuste as políticas conforme necessário no SQL Editor
-
+- As foreign keys usam `ON DELETE CASCADE` para manter integridade
+- Timestamps são atualizados automaticamente via triggers
+- Soft delete é usado em `menu_items` (campo `is_active`)
+- O split de pagamento é gerenciado pelo Mercado Pago usando `mp_user_id`

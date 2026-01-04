@@ -7,15 +7,18 @@ import { HelmetProvider } from "react-helmet-async";
 import { CartProvider } from "@/contexts/CartContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import CartDrawer from "@/components/CartDrawer";
-import AdminRoute from "@/components/AdminRoute";
 import Index from "./pages/Index";
 import Menu from "./pages/Menu";
-import Login from "./pages/Login";
-import OwnerPortal from "./pages/OwnerPortal";
-import Admin from "./pages/Admin";
 import BarMenu from "./pages/BarMenu";
-import BarStaff from "./pages/BarStaff";
+import BarIndex from "./pages/BarIndex";
+import Login from "./pages/Login";
+import AdminPortal from "./pages/AdminPortal";
+import OwnerPortal from "./pages/OwnerPortal";
+import StaffPortal from "./pages/StaffPortal";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailure from "./pages/PaymentFailure";
 import NotFound from "./pages/NotFound";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -27,16 +30,48 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <CartDrawer />
             <BrowserRouter>
+              <CartDrawer />
               <Routes>
+                {/* Rotas padrão (fallback) */}
                 <Route path="/" element={<Index />} />
                 <Route path="/menu" element={<Menu />} />
+                
+                {/* Rotas dinâmicas por bar */}
+                <Route path="/bar/:slug" element={<BarIndex />} />
+                <Route path="/bar/:slug/menu" element={<BarMenu />} />
+                
+                {/* Rotas administrativas */}
                 <Route path="/login" element={<Login />} />
-                <Route path="/owner" element={<OwnerPortal />} />
-              <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-                <Route path="/bar/:slug" element={<BarMenu />} />
-                <Route path="/bar/:slug/staff" element={<BarStaff />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <AdminPortal />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/owner"
+                  element={
+                    <ProtectedRoute requireOwner>
+                      <OwnerPortal />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/staff"
+                  element={
+                    <ProtectedRoute requireOwner>
+                      <StaffPortal />
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* Rotas de pagamento */}
+                <Route path="/payment/success" element={<PaymentSuccess />} />
+                <Route path="/payment/failure" element={<PaymentFailure />} />
+                <Route path="/payment/pending" element={<PaymentSuccess />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

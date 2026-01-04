@@ -166,6 +166,10 @@ const BackgroundImageManager = () => {
   };
 
   const handleImageSelect = async (imageUrl: string) => {
+    // Mostrar feedback visual imediato
+    setImages((prev) => ({ ...prev, [activeTab]: imageUrl }));
+    
+    // Salvar no banco de dados
     await handleImageChange(activeTab, imageUrl);
     setShowUpload(false);
   };
@@ -331,25 +335,41 @@ const BackgroundImageManager = () => {
                       </div>
                     ) : availableImages.length > 0 ? (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {availableImages.map((imageUrl, index) => (
-                          <div
-                            key={index}
-                            className="relative group cursor-pointer rounded-lg overflow-hidden border-2 border-border/50 hover:border-primary transition-all"
-                            onClick={() => handleImageSelect(imageUrl)}
-                          >
-                            <img
-                              src={imageUrl}
-                              alt={`Imagem ${index + 1}`}
-                              className="w-full h-24 object-cover"
-                            />
-                            {images[type] === imageUrl && (
-                              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                                <CheckCircle2 className="w-6 h-6 text-primary" />
-                              </div>
-                            )}
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                          </div>
-                        ))}
+                        {availableImages.map((imageUrl, index) => {
+                          const isSelected = images[type] === imageUrl;
+                          return (
+                            <div
+                              key={index}
+                              className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                                isSelected
+                                  ? 'border-primary ring-2 ring-primary ring-offset-2'
+                                  : 'border-border/50 hover:border-primary'
+                              }`}
+                              onClick={() => handleImageSelect(imageUrl)}
+                            >
+                              <img
+                                src={imageUrl}
+                                alt={`Imagem ${index + 1}`}
+                                className="w-full h-24 object-cover"
+                              />
+                              {isSelected && (
+                                <div className="absolute inset-0 bg-primary/30 flex items-center justify-center">
+                                  <div className="bg-background/90 rounded-full p-2">
+                                    <CheckCircle2 className="w-6 h-6 text-primary" />
+                                  </div>
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                              {!isSelected && (
+                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="bg-background/80 backdrop-blur-sm rounded-full p-1.5">
+                                    <ImagePlus className="w-4 h-4 text-primary" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-muted-foreground text-sm">

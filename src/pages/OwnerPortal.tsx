@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, Database, ImagePlus, Edit3, Trash2, Plus, Shield, CheckCircle2, List } from 'lucide-react';
 import Header from '@/components/Header';
@@ -12,10 +13,13 @@ import MenuItemList from '@/components/MenuItemList';
 import BackgroundImageManager from '@/components/BackgroundImageManager';
 import { isSupabaseConnected, getSupabaseClient } from '@/lib/supabase';
 import { useMenuItems } from '@/hooks/useMenuItems';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { MenuItem } from '@/data/menuData';
 
 const OwnerPortal = () => {
+  const navigate = useNavigate();
+  const { isOwner, barId, user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | undefined>(undefined);
@@ -30,8 +34,53 @@ const OwnerPortal = () => {
             !!localStorage.getItem('supabase_anon_key'));
   });
 
-  // Desabilitar polling no Portal do Dono para evitar piscadas na tela
-  const { items, loading, error, addItem, updateItem, deleteItem, refetch } = useMenuItems(false);
+  const { items, loading, error, addItem, updateItem, deleteItem, refetch, importDefaultItems } = useMenuItems();
+
+  // Verificar acesso ao portal
+  useEffect(() => {
+    if (user) {
+      // Aguardar um pouco para garantir que o barId foi carregado
+      const timeoutId = setTimeout(() => {
+        console.log('OwnerPortal - Verificando acesso:', { 
+          isOwner, 
+          barId, 
+          userRole: user?.user_metadata?.role,
+          userBarId: user?.user_metadata?.bar_id,
+          userEmail: user?.email,
+          fullUser: user
+        });
+        
+        if (!isOwner) {
+          toast({
+            title: 'Acesso negado',
+            description: 'Apenas proprietários podem acessar o portal do dono.',
+            variant: 'destructive',
+          });
+          navigate('/');
+          return;
+        }
+        
+        if (!barId) {
+          // Tentar buscar bar_id diretamente do user_metadata novamente
+          const directBarId = user?.user_metadata?.bar_id;
+          if (directBarId) {
+            console.log('bar_id encontrado diretamente no user_metadata:', directBarId);
+            // O AuthContext deve atualizar automaticamente via onAuthStateChange
+            return;
+          }
+          
+          toast({
+            title: 'Acesso negado',
+            description: `Seu usuário não está associado a um estabelecimento. Email: ${user?.email}. Entre em contato com o administrador para corrigir.`,
+            variant: 'destructive',
+          });
+          navigate('/');
+          return;
+        }
+      }, 1500); // Aumentado para 1.5 segundos para dar mais tempo
+      return () => clearTimeout(timeoutId);
+    }
+  }, [user, isOwner, barId, navigate, toast]);
 
   // Try to initialize from localStorage on mount
   useEffect(() => {
@@ -230,20 +279,24 @@ const OwnerPortal = () => {
                   </motion.div>
                 </TabsContent>
 
-                <TabsContent value="manage" className="space-y-6">
-                  {error && (
-                    <Card className="border-destructive">
-                      <CardContent className="pt-6">
-                        <p className="text-destructive">{error}</p>
-                      </CardContent>
-                    </Card>
-                  )}
+      <TabsContent value="manage" className="space-y-6">
+        {error && (
+          <Card className="border-destructive">
+            <CardContent className="pt-6">
+              <p className="text-destructive">
+                {typeof error === 'string' ? error : error?.message || 'Erro ao carregar itens'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
                   <MenuItemList
                     items={items}
                     loading={loading}
                     onEdit={handleEditItem}
                     onDelete={handleDeleteItem}
                     onAdd={handleAddItem}
+                    barId={barId}
+                    onImportDefault={importDefaultItems}
                   />
                 </TabsContent>
               </Tabs>
@@ -395,6 +448,7 @@ const OwnerPortal = () => {
         onSubmit={handleFormSubmit}
         initialData={editingItem}
         mode={editingItem ? 'edit' : 'create'}
+        barId={barId}
       />
     </>
   );

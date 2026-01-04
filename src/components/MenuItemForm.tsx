@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -12,33 +12,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import ImageUploader from '@/components/ImageUploader';
 import { categories, type MenuItem, type Category } from '@/data/menuData';
+import { useBarCategories } from '@/hooks/useBarCategories';
+import { useCustomCategories } from '@/hooks/useCustomCategories';
+import { useAuth } from '@/contexts/AuthContext';
 
-const menuItemSchema = z.object({
-  name: z.string().min(1, 'Nome é obrigatório'),
-  description: z.string().min(1, 'Descrição é obrigatória'),
-  price: z.number().min(0, 'Preço deve ser maior ou igual a zero'),
-  category: z.enum(['cocktails', 'beers', 'wines', 'spirits', 'appetizers', 'mains']),
-  image: z.string().min(1, 'Imagem é obrigatória').refine(
-    (val) => {
-      // Aceita URLs válidas ou URLs do Supabase Storage
-      if (!val) return false;
-      try {
-        new URL(val);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    { message: 'URL da imagem inválida' }
-  ),
-  ingredients: z.string().optional(),
-  preparation: z.string().optional(),
-  abv: z.number().min(0).max(100).optional().nullable(),
-  isPopular: z.boolean().default(false),
-  isNew: z.boolean().default(false),
-});
-
-type MenuItemFormData = z.infer<typeof menuItemSchema>;
+// Schema dinâmico baseado nas categorias disponíveis
+const createMenuItemSchema = (availableCategories: Category[]) => {
+  // Garantir que sempre temos pelo menos uma categoria
+  const validCategories = availableCategories.length > 0 
+    ? availableCategories 
+    : ['cocktails'];
+  
+  // Criar tupla para z.enum
+  const categoryEnum = validCategories as [Category, ...Category[]];
+  
+  return z.object({
+    name: z.string().min(1, 'Nome é obrigatório'),
+    description: z.string().min(1, 'Descrição é obrigatória'),
+    price: z.number().min(0, 'Preço deve ser maior ou igual a zero'),
+    category: z.string().refine(
+      (val) => validCategories.includes(val as Category),
+      { message: 'Categoria inválida. Selecione uma categoria disponível.' }
+    ),
+    image: z.string().min(1, 'Imagem é obrigatória').refine(
+      (val) => {
+        // Aceita URLs válidas ou URLs do Supabase Storage
+        if (!val) return false;
+        try {
+          new URL(val);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: 'URL da imagem inválida' }
+    ),
+    ingredients: z.string().optional(),
+    preparation: z.string().optional(),
+    abv: z.number().min(0).max(100).optional().nullable(),
+    isPopular: z.boolean().default(false),
+    isNew: z.boolean().default(false),
+  });
+};
 
 interface MenuItemFormProps {
   open: boolean;
@@ -46,11 +61,65 @@ interface MenuItemFormProps {
   onSubmit: (data: Omit<MenuItem, 'id'>) => Promise<void>;
   initialData?: MenuItem;
   mode: 'create' | 'edit';
+  barId?: string | null; // Opcional: permite passar barId diretamente
 }
 
-const MenuItemForm = ({ open, onOpenChange, onSubmit, initialData, mode }: MenuItemFormProps) => {
+const MenuItemForm = ({ open, onOpenChange, onSubmit, initialData, mode, barId: propBarId }: MenuItemFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Obter barId do contexto ou da prop
+  const { barId: authBarId, isAdmin } = useAuth();
+  const barId = propBarId ?? authBarId;
+  
+  // Obter categorias disponíveis para o bar
+  const { getAvailableCategories } = useBarCategories();
+  const { customCategories } = useCustomCategories();
+  
+  // Combinar categorias padrão com customizadas
+  const allCategories = useMemo(() => {
+    const defaultCats = categories.map(cat => ({
+      id: cat.id,
+      label: cat.label,
+      icon: cat.icon,
+    }));
+    const customCats = customCategories.map(cat => ({
+      id: cat.id,
+      label: cat.label,
+      icon: cat.icon,
+    }));
+    return [...defaultCats, ...customCats];
+  }, [customCategories]);
+  
+  // Se não há bar_id ou é admin, mostrar todas as categorias
+  const showAllCategories = !barId || isAdmin;
+  
+  // Obter apenas categorias disponíveis/in_use para este bar
+  const availableCategoryIds = useMemo(() => {
+    return showAllCategories 
+      ? allCategories.map(c => c.id)
+      : getAvailableCategories(barId || '');
+  }, [showAllCategories, barId, getAvailableCategories, allCategories]);
+  
+  // Filtrar categorias para mostrar apenas as disponíveis
+  const categoriesToShow = useMemo(() => {
+    return showAllCategories
+      ? allCategories
+      : allCategories.filter(cat => availableCategoryIds.includes(cat.id));
+  }, [showAllCategories, allCategories, availableCategoryIds]);
+  
+  // Criar schema dinâmico baseado nas categorias disponíveis
+  const menuItemSchema = useMemo(() => {
+    const catIds = categoriesToShow.map(c => c.id);
+    return createMenuItemSchema(catIds.length > 0 ? catIds : ['cocktails']);
+  }, [categoriesToShow]);
+  
+  type MenuItemFormData = z.infer<typeof menuItemSchema>;
+  
+  // Obter categoria padrão (primeira disponível ou cocktails)
+  const defaultCategory = useMemo(() => {
+    return categoriesToShow.length > 0 ? categoriesToShow[0].id : 'cocktails';
+  }, [categoriesToShow]);
 
   const {
     register,
@@ -65,7 +134,7 @@ const MenuItemForm = ({ open, onOpenChange, onSubmit, initialData, mode }: MenuI
       name: '',
       description: '',
       price: 0,
-      category: 'cocktails',
+      category: defaultCategory as Category,
       image: '',
       ingredients: '',
       preparation: '',
@@ -96,7 +165,7 @@ const MenuItemForm = ({ open, onOpenChange, onSubmit, initialData, mode }: MenuI
         name: '',
         description: '',
         price: 0,
-        category: 'cocktails',
+        category: defaultCategory as Category,
         image: '',
         ingredients: '',
         preparation: '',
@@ -118,11 +187,16 @@ const MenuItemForm = ({ open, onOpenChange, onSubmit, initialData, mode }: MenuI
         ? data.ingredients.split(',').map((ing) => ing.trim()).filter(Boolean)
         : [];
 
+      // Validar que a categoria está nas disponíveis antes de enviar
+      if (!availableCategoryIds.includes(data.category)) {
+        throw new Error('Categoria selecionada não está disponível para este bar.');
+      }
+
       const menuItem: Omit<MenuItem, 'id'> = {
         name: data.name,
         description: data.description,
         price: data.price,
-        category: data.category,
+        category: data.category as Category,
         image: data.image,
         ingredients: ingredientsArray.length > 0 ? ingredientsArray : undefined,
         preparation: data.preparation || undefined,
@@ -131,6 +205,7 @@ const MenuItemForm = ({ open, onOpenChange, onSubmit, initialData, mode }: MenuI
         isNew: data.isNew,
       };
 
+      console.log('📝 Enviando item para adicionar:', menuItem);
       await onSubmit(menuItem);
       onOpenChange(false);
     } catch (err) {
@@ -185,21 +260,27 @@ const MenuItemForm = ({ open, onOpenChange, onSubmit, initialData, mode }: MenuI
 
           <div className="space-y-2">
             <Label htmlFor="category">Categoria *</Label>
-            <Select
-              value={watch('category')}
-              onValueChange={(value) => setValue('category', value as Category)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {categoriesToShow.length === 0 ? (
+              <div className="p-3 rounded-md bg-muted text-muted-foreground text-sm">
+                Nenhuma categoria disponível. Entre em contato com o administrador.
+              </div>
+            ) : (
+              <Select
+                value={watch('category')}
+                onValueChange={(value) => setValue('category', value as Category)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoriesToShow.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {errors.category && (
               <p className="text-sm text-destructive">{errors.category.message}</p>
             )}

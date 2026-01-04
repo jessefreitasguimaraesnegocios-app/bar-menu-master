@@ -1,13 +1,24 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import heroBackground from '@/assets/cantim-logo.png';
 import { useBackgroundImages } from '@/hooks/useBackgroundImages';
+import { useAuth } from '@/contexts/AuthContext';
 
-const HeroSection = () => {
+interface HeroSectionProps {
+  barName?: string; // Nome do bar (para rotas dinâmicas)
+}
+
+const HeroSection = ({ barName }: HeroSectionProps = {}) => {
   const { images } = useBackgroundImages();
+  const { isOwner } = useAuth();
+  const { slug } = useParams<{ slug?: string }>();
   const backgroundImage = images.hero || heroBackground;
+  
+  // Determinar nome do estabelecimento
+  const establishmentName = barName || 'Cantim';
+  const menuLink = slug ? `/bar/${slug}/menu` : '/menu';
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -53,7 +64,7 @@ const HeroSection = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link to="/menu">
+            <Link to={menuLink}>
               <Button
                 size="lg"
                 className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-lg font-medium rounded-full shadow-glow transition-all duration-300 hover:shadow-[0_0_60px_hsl(32_80%_50%/0.3)]"
@@ -62,15 +73,17 @@ const HeroSection = () => {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link to="/owner">
-              <Button
-                variant="outline"
-                size="lg"
-                className="border-border/50 hover:border-primary/50 hover:bg-primary/5 px-8 py-6 text-lg font-medium rounded-full"
-              >
-                Portal do Dono
-              </Button>
-            </Link>
+            {isOwner && (
+              <Link to="/owner">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="border-border/50 hover:border-primary/50 hover:bg-primary/5 px-8 py-6 text-lg font-medium rounded-full"
+                >
+                  Portal do Dono
+                </Button>
+              </Link>
+            )}
           </div>
         </motion.div>
 

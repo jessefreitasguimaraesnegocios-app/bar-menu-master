@@ -1,94 +1,108 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Lock, Loader2, AlertCircle } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Loader2 } from 'lucide-react';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+
+const loginSchema = z.object({
+  email: z.string().email('Email inválido'),
+  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { signIn, isOwner, loading: authLoading } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { signIn } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  // Se já estiver logado como owner, redirecionar para /owner
-  useEffect(() => {
-    if (!authLoading && isOwner) {
-      navigate('/owner');
-    }
-  }, [isOwner, authLoading, navigate]);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
+  const onSubmit = async (data: LoginFormData) => {
+    setIsLoading(true);
     try {
-      await signIn(email, password);
-      navigate('/owner');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao fazer login');
+      await signIn(data.email, data.password);
+      toast({
+        title: 'Login realizado com sucesso',
+        description: 'Bem-vindo de volta!',
+      });
+      // Pequeno delay para garantir que o estado do AuthContext seja atualizado
+      // antes de redirecionar
+      setTimeout(() => {
+        navigate('/owner');
+      }, 100);
+    } catch (error: any) {
+      // Se o erro for sobre admin tentando fazer login aqui, mostrar erro
+      if (error.message?.includes('Admins devem fazer login em /admin')) {
+        toast({
+          title: 'Erro ao fazer login',
+          description: 'Este usuário não existe',
+          variant: 'destructive',
+        });
+        return;
+      }
+      toast({
+        title: 'Erro ao fazer login',
+        description: error.message || 'Email ou senha incorretos',
+        variant: 'destructive',
+      });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
     <>
       <Helmet>
-        <title>Login - Portal do Dono | Cantim</title>
-        <meta name="description" content="Acesso exclusivo para proprietários do bar" />
+        <title>Login | Cantim</title>
       </Helmet>
 
       <div className="min-h-screen bg-background">
         <Header />
-
         <main className="pt-24 pb-16">
           <div className="container mx-auto px-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="max-w-md mx-auto"
-            >
-              <Card className="glass border-primary/20 glow-border">
-                <CardHeader className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Lock className="w-8 h-8 text-primary" />
-                  </div>
-                  <CardTitle className="font-serif text-3xl">Login</CardTitle>
-                  <CardDescription>
-                    Acesso exclusivo para proprietários
+            <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
+              <Card className="w-full max-w-md glass border-border/50">
+                <CardHeader className="space-y-1">
+                  <CardTitle className="text-2xl font-serif text-center">
+                    Login
+                  </CardTitle>
+                  <CardDescription className="text-center">
+                    Acesse o portal do dono
                   </CardDescription>
                 </CardHeader>
-
                 <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    {error && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    )}
-
+                  <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <Input
                         id="email"
                         type="email"
                         placeholder="seu@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        disabled={loading}
+                        {...register('email')}
+                        disabled={isLoading}
                       />
+                      {errors.email && (
+                        <p className="text-sm text-destructive">
+                          {errors.email.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -97,20 +111,22 @@ const Login = () => {
                         id="password"
                         type="password"
                         placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        disabled={loading}
+                        {...register('password')}
+                        disabled={isLoading}
                       />
+                      {errors.password && (
+                        <p className="text-sm text-destructive">
+                          {errors.password.message}
+                        </p>
+                      )}
                     </div>
 
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={loading}
-                      size="lg"
+                      disabled={isLoading}
                     >
-                      {loading ? (
+                      {isLoading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Entrando...
@@ -122,7 +138,7 @@ const Login = () => {
                   </form>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           </div>
         </main>
       </div>
@@ -131,4 +147,3 @@ const Login = () => {
 };
 
 export default Login;
-

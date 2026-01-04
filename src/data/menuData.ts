@@ -1,4 +1,4 @@
-export type Category = 'cocktails' | 'beers' | 'wines' | 'spirits' | 'appetizers' | 'mains';
+export type Category = 'cocktails' | 'beers' | 'wines' | 'spirits' | 'appetizers' | 'mains' | string;
 
 export interface MenuItem {
   id: string;
@@ -22,6 +22,23 @@ export const categories: { id: Category; label: string; icon: string }[] = [
   { id: 'appetizers', label: 'Entradas', icon: '🍢' },
   { id: 'mains', label: 'Pratos Principais', icon: '🍽️' },
 ];
+
+// Função para obter todas as categorias (padrão + customizadas)
+// Esta função será usada dinamicamente em componentes que precisam da lista completa
+export const getAllCategories = () => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('custom_categories');
+    if (saved) {
+      try {
+        const customCategories = JSON.parse(saved);
+        return [...categories, ...customCategories];
+      } catch (error) {
+        return categories;
+      }
+    }
+  }
+  return categories;
+};
 
 export const menuItems: MenuItem[] = [
   // Coquetéis

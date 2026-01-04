@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
@@ -10,6 +10,8 @@ import ItemDetailModal from '@/components/ItemDetailModal';
 import PopularItemsCarousel from '@/components/PopularItemsCarousel';
 import { useMenuItems } from '@/hooks/useMenuItems';
 import { useBackgroundImages } from '@/hooks/useBackgroundImages';
+import { useAuth } from '@/contexts/AuthContext';
+import { useBarCategories } from '@/hooks/useBarCategories';
 import { MenuItem, Category } from '@/data/menuData';
 import { menuItems as fallbackMenuItems } from '@/data/menuData';
 
@@ -17,13 +19,33 @@ const Menu = () => {
   const [activeCategory, setActiveCategory] = useState<Category | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const { barId, isAdmin } = useAuth();
+  const { getAvailableCategories } = useBarCategories();
   
   // Buscar itens do Supabase (ou usar fallback se não estiver conectado)
   const { items: supabaseItems, loading } = useMenuItems();
   const { images: backgroundImages } = useBackgroundImages();
   
   // Usar itens do Supabase se disponíveis, senão usar fallback
-  const menuItems = supabaseItems.length > 0 ? supabaseItems : fallbackMenuItems;
+  const allMenuItems = supabaseItems.length > 0 ? supabaseItems : fallbackMenuItems;
+
+  // Filtrar itens baseado nas categorias disponíveis para o bar
+  const menuItems = useMemo(() => {
+    // Admin vê todos os itens, público também vê todos
+    if (!barId || isAdmin) {
+      // Se não há bar_id, mostrar todos os itens
+      return allMenuItems;
+    }
+
+    const availableCategories = getAvailableCategories(barId);
+    if (availableCategories.length === 0) {
+      // Se não há categorias disponíveis, mostrar todos (fallback)
+      return allMenuItems;
+    }
+
+    // Filtrar apenas itens das categorias disponíveis
+    return allMenuItems.filter(item => availableCategories.includes(item.category));
+  }, [allMenuItems, barId, isAdmin, getAvailableCategories]);
 
   // Filtrar itens populares para o carrossel
   const popularItems = useMemo(() => {

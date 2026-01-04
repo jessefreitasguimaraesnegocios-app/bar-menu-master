@@ -3,18 +3,35 @@ import { MenuItem } from '@/data/menuData';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { useCart } from '@/contexts/CartContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
   isOpen: boolean;
   onClose: () => void;
+  onAddToCart?: (item: MenuItem, quantity: number) => void; // Callback opcional customizado
 }
 
-const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
-  const { addItem, getItemQuantity, updateQuantity, openCart } = useCart();
+const ItemDetailModal = ({ item, isOpen, onClose, onAddToCart }: ItemDetailModalProps) => {
+  const { addItem: defaultAddItem, getItemQuantity, updateQuantity, openCart } = useCart();
+  
+  // Usar callback customizado se fornecido, senão usar o padrão
+  const addItemToCart = onAddToCart || defaultAddItem;
   const [quantity, setQuantity] = useState(1);
+  const [itemAdded, setItemAdded] = useState(false);
+  
+  // Resetar estado quando o item mudar ou modal fechar
+  useEffect(() => {
+    if (!isOpen) {
+      setItemAdded(false);
+      setQuantity(1);
+    }
+  }, [isOpen]);
+
+  const currentQuantity = item ? getItemQuantity(item.id) : 0;
+  const isInCart = currentQuantity > 0 || itemAdded;
   
   if (!item) return null;
 
@@ -30,16 +47,6 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
-          
-          {/* Close Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="absolute top-4 right-4 bg-background/50 backdrop-blur-sm hover:bg-background/70 rounded-full"
-          >
-            <X className="h-5 w-5" />
-          </Button>
 
           {/* Badges */}
           <div className="absolute top-4 left-4 flex gap-2">
@@ -111,6 +118,60 @@ const ItemDetailModal = ({ item, isOpen, onClose }: ItemDetailModalProps) => {
               </p>
             </div>
           )}
+
+          {/* Add to Cart Section */}
+          <div className="border-t pt-6 space-y-4">
+            {!isInCart && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Quantidade</Label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-12 text-center font-semibold text-lg">{quantity}</span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setQuantity(quantity + 1)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!isInCart ? (
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={() => {
+                  addItemToCart(item, quantity);
+                  setItemAdded(true);
+                }}
+              >
+                <ShoppingCart className="mr-2 h-5 w-5" />
+                Adicionar ao Carrinho - R$ {(item.price * quantity).toFixed(2)}
+              </Button>
+            ) : (
+              <Button
+                className="w-full"
+                size="lg"
+                variant="outline"
+                onClick={() => {
+                  openCart();
+                  onClose();
+                }}
+              >
+                <ShoppingCart className="mr-2 h-5 w-5" />
+                Ver Carrinho
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

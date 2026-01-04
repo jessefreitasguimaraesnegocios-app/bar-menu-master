@@ -24,14 +24,22 @@ FROM information_schema.columns
 WHERE table_name = 'menu_items'
 ORDER BY ordinal_position;
 
--- Verificar se o tipo ENUM category_type existe
+-- Verificar tipo da coluna category (deve ser VARCHAR, não ENUM)
 SELECT 
-  'Tipo ENUM category_type' as verificação,
+  'Tipo da coluna category' as verificação,
+  column_name,
+  data_type,
+  udt_name,
   CASE 
-    WHEN EXISTS (SELECT FROM pg_type WHERE typname = 'category_type')
-    THEN '✓ Existe'
-    ELSE '✗ Não existe'
-  END as status;
+    WHEN data_type = 'character varying' OR data_type = 'varchar'
+    THEN '✓ VARCHAR (permite categorias customizadas)'
+    WHEN udt_name = 'category_type'
+    THEN '⚠ ENUM (execute 08_update_category_to_varchar.sql)'
+    ELSE '✗ Tipo desconhecido'
+  END as status
+FROM information_schema.columns
+WHERE table_name = 'menu_items'
+AND column_name = 'category';
 
 -- Verificar índices
 SELECT 
@@ -108,12 +116,138 @@ WHERE is_active = TRUE
 GROUP BY category
 ORDER BY category;
 
+-- ============================================
+-- Verificar tabela bars
+-- ============================================
+SELECT 
+  'Tabela bars' as verificação,
+  CASE 
+    WHEN EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'bars')
+    THEN '✓ Existe'
+    ELSE '✗ Não existe'
+  END as status;
 
+-- Verificar colunas da tabela bars
+SELECT 
+  'Colunas da tabela bars' as verificação,
+  column_name,
+  data_type,
+  is_nullable
+FROM information_schema.columns
+WHERE table_name = 'bars'
+ORDER BY ordinal_position;
 
+-- Verificar se campo slug existe na tabela bars
+SELECT 
+  'Campo slug em bars' as verificação,
+  CASE 
+    WHEN EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'bars' AND column_name = 'slug'
+    )
+    THEN '✓ Existe'
+    ELSE '✗ Não existe (execute 06_add_slug_and_settings.sql)'
+  END as status;
 
+-- Verificar políticas RLS da tabela bars
+SELECT 
+  'Políticas RLS - bars' as verificação,
+  policyname,
+  cmd as operação,
+  qual as condição_using,
+  with_check as condição_check
+FROM pg_policies
+WHERE tablename = 'bars'
+ORDER BY policyname;
 
+-- ============================================
+-- Verificar tabela bar_settings
+-- ============================================
+SELECT 
+  'Tabela bar_settings' as verificação,
+  CASE 
+    WHEN EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'bar_settings')
+    THEN '✓ Existe'
+    ELSE '✗ Não existe (execute 06_add_slug_and_settings.sql)'
+  END as status;
 
+-- Verificar colunas da tabela bar_settings
+SELECT 
+  'Colunas da tabela bar_settings' as verificação,
+  column_name,
+  data_type,
+  is_nullable
+FROM information_schema.columns
+WHERE table_name = 'bar_settings'
+ORDER BY ordinal_position;
 
+-- Verificar políticas RLS da tabela bar_settings
+SELECT 
+  'Políticas RLS - bar_settings' as verificação,
+  policyname,
+  cmd as operação,
+  qual as condição_using,
+  with_check as condição_check
+FROM pg_policies
+WHERE tablename = 'bar_settings'
+ORDER BY policyname;
 
+-- ============================================
+-- Verificar tabelas de pedidos (orders)
+-- ============================================
+SELECT 
+  'Tabela orders' as verificação,
+  CASE 
+    WHEN EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'orders')
+    THEN '✓ Existe'
+    ELSE '✗ Não existe (execute 02_orders.sql)'
+  END as status;
 
+SELECT 
+  'Tabela order_items' as verificação,
+  CASE 
+    WHEN EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'order_items')
+    THEN '✓ Existe'
+    ELSE '✗ Não existe (execute 02_orders.sql)'
+  END as status;
 
+SELECT 
+  'Tabela payments' as verificação,
+  CASE 
+    WHEN EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'payments')
+    THEN '✓ Existe'
+    ELSE '✗ Não existe (execute 02_orders.sql)'
+  END as status;
+
+-- ============================================
+-- Verificar foreign keys
+-- ============================================
+SELECT 
+  'Foreign Keys' as verificação,
+  tc.table_name,
+  kcu.column_name,
+  ccu.table_name AS foreign_table_name,
+  ccu.column_name AS foreign_column_name
+FROM information_schema.table_constraints AS tc
+JOIN information_schema.key_column_usage AS kcu
+  ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage AS ccu
+  ON ccu.constraint_name = tc.constraint_name
+WHERE tc.constraint_type = 'FOREIGN KEY'
+  AND tc.table_schema = 'public'
+  AND tc.table_name IN ('menu_items', 'bars', 'bar_settings', 'orders', 'order_items', 'payments')
+ORDER BY tc.table_name, kcu.column_name;
+
+-- ============================================
+-- Resumo de configurações de bares
+-- ============================================
+SELECT 
+  'Configurações de bares' as verificação,
+  COUNT(*) as total_bars,
+  COUNT(bs.id) as bars_com_configuracoes,
+  COUNT(CASE WHEN bs.webhook_kitchen_enabled THEN 1 END) as webhooks_cozinha_habilitados,
+  COUNT(CASE WHEN bs.webhook_bartender_enabled THEN 1 END) as webhooks_barman_habilitados,
+  COUNT(CASE WHEN bs.webhook_waiter_enabled THEN 1 END) as webhooks_garcom_habilitados
+FROM bars b
+LEFT JOIN bar_settings bs ON bs.bar_id = b.id
+WHERE b.is_active = TRUE;

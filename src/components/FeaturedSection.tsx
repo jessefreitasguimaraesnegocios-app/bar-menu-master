@@ -3,7 +3,11 @@ import { Star } from 'lucide-react';
 import { useMenuItems } from '@/hooks/useMenuItems';
 import { menuItems as fallbackMenuItems } from '@/data/menuData';
 
-const FeaturedSection = () => {
+interface FeaturedSectionProps {
+  barSlug?: string; // Slug do bar para rotas dinâmicas
+}
+
+const FeaturedSection = ({ barSlug }: FeaturedSectionProps = {}) => {
   // Buscar itens do Supabase (ou usar fallback se não estiver conectado)
   const { items: supabaseItems } = useMenuItems();
   

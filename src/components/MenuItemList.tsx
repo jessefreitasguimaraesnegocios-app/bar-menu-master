@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Edit3, Trash2, Plus, Search } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Edit3, Trash2, Plus, Search, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,8 +14,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { categories, type MenuItem } from '@/data/menuData';
+import { categories, type MenuItem, type Category } from '@/data/menuData';
 import { useToast } from '@/hooks/use-toast';
+import { useBarCategories } from '@/hooks/useBarCategories';
+import { useCustomCategories } from '@/hooks/useCustomCategories';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MenuItemListProps {
   items: MenuItem[];
@@ -23,15 +26,57 @@ interface MenuItemListProps {
   onEdit: (item: MenuItem) => void;
   onDelete: (id: string) => Promise<void>;
   onAdd: () => void;
+  barId?: string | null; // Opcional: permite passar barId diretamente
+  onImportDefault?: () => Promise<void>; // Função para importar itens padrão
 }
 
-const MenuItemList = ({ items, loading, onEdit, onDelete, onAdd }: MenuItemListProps) => {
+const MenuItemList = ({ items, loading, onEdit, onDelete, onAdd, barId: propBarId, onImportDefault }: MenuItemListProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  
+  // Obter barId do contexto ou da prop
+  const { barId: authBarId, isAdmin } = useAuth();
+  const barId = propBarId ?? authBarId;
+  
+  // Obter categorias disponíveis para o bar
+  const { getAvailableCategories } = useBarCategories();
+  const { customCategories } = useCustomCategories();
+  
+  // Combinar categorias padrão com customizadas
+  const allCategories = useMemo(() => {
+    const defaultCats = categories.map(cat => ({
+      id: cat.id,
+      label: cat.label,
+      icon: cat.icon,
+    }));
+    const customCats = customCategories.map(cat => ({
+      id: cat.id,
+      label: cat.label,
+      icon: cat.icon,
+    }));
+    return [...defaultCats, ...customCats];
+  }, [customCategories]);
+  
+  // Se não há bar_id ou é admin, mostrar todas as categorias
+  const showAllCategories = !barId || isAdmin;
+  
+  // Obter apenas categorias disponíveis/in_use para este bar
+  const availableCategoryIds = useMemo(() => {
+    return showAllCategories 
+      ? allCategories.map(c => c.id)
+      : getAvailableCategories(barId || '');
+  }, [showAllCategories, barId, getAvailableCategories, allCategories]);
+  
+  // Filtrar categorias para mostrar apenas as disponíveis
+  const categoriesToShow = useMemo(() => {
+    return showAllCategories
+      ? allCategories
+      : allCategories.filter(cat => availableCategoryIds.includes(cat.id));
+  }, [showAllCategories, allCategories, availableCategoryIds]);
 
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -69,11 +114,15 @@ const MenuItemList = ({ items, loading, onEdit, onDelete, onAdd }: MenuItemListP
   };
 
   const getCategoryLabel = (category: string) => {
-    return categories.find((cat) => cat.id === category)?.label || category;
+    // Buscar em todas as categorias (padrão + customizadas)
+    const cat = allCategories.find((c) => c.id === category);
+    return cat?.label || category;
   };
 
   const getCategoryIcon = (category: string) => {
-    return categories.find((cat) => cat.id === category)?.icon || '';
+    // Buscar em todas as categorias (padrão + customizadas)
+    const cat = allCategories.find((c) => c.id === category);
+    return cat?.icon || '';
   };
 
   if (loading) {
@@ -114,7 +163,7 @@ const MenuItemList = ({ items, loading, onEdit, onDelete, onAdd }: MenuItemListP
           >
             Todos
           </Button>
-          {categories.map((category) => (
+          {categoriesToShow.map((category) => (
             <Button
               key={category.id}
               variant={selectedCategory === category.id ? 'default' : 'outline'}
@@ -130,16 +179,63 @@ const MenuItemList = ({ items, loading, onEdit, onDelete, onAdd }: MenuItemListP
       {filteredItems.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">
-              {items.length === 0
-                ? 'Nenhum item no cardápio ainda. Adicione o primeiro item!'
-                : 'Nenhum item encontrado com os filtros selecionados.'}
-            </p>
-            {items.length === 0 && (
-              <Button onClick={onAdd}>
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar Primeiro Item
-              </Button>
+            {items.length === 0 ? (
+              <>
+                <p className="text-muted-foreground mb-2 text-lg font-semibold">
+                  Nenhum item no cardápio ainda
+                </p>
+                <p className="text-muted-foreground mb-6 text-sm max-w-md mx-auto">
+                  Adicione itens ao seu cardápio para que apareçam no menu público.
+                  Os itens devem estar associados ao seu estabelecimento.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+                  {onImportDefault && (
+                    <Button 
+                      onClick={async () => {
+                        if (onImportDefault) {
+                          try {
+                            await onImportDefault();
+                            toast({
+                              title: "Itens importados!",
+                              description: "Os itens padrão foram adicionados ao seu cardápio.",
+                            });
+                          } catch (error) {
+                            toast({
+                              title: "Erro ao importar",
+                              description: error instanceof Error ? error.message : "Não foi possível importar os itens padrão.",
+                              variant: "destructive",
+                            });
+                          }
+                        }
+                      }}
+                      variant="outline"
+                      size="lg"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Importar Itens Padrão
+                    </Button>
+                  )}
+                  <Button onClick={onAdd} size="lg">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Adicionar Primeiro Item
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-muted-foreground mb-4">
+                  Nenhum item encontrado com os filtros selecionados.
+                </p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    setSearchTerm('');
+                  }}
+                >
+                  Limpar Filtros
+                </Button>
+              </>
             )}
           </CardContent>
         </Card>
