@@ -14,6 +14,7 @@ import Login from "./pages/Login";
 import OwnerPortal from "./pages/OwnerPortal";
 import Admin from "./pages/Admin";
 import BarMenu from "./pages/BarMenu";
+import BarStaff from "./pages/BarStaff";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,8 +34,9 @@ const App = () => (
                 <Route path="/menu" element={<Menu />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/owner" element={<OwnerPortal />} />
-                <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
                 <Route path="/bar/:slug" element={<BarMenu />} />
+                <Route path="/bar/:slug/staff" element={<BarStaff />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
