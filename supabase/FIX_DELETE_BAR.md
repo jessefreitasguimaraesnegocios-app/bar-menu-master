@@ -123,3 +123,5 @@ SELECT public.is_admin(auth.uid()) as is_admin;
 - Logs detalhados foram adicionados para facilitar o debug
 
 
+
+

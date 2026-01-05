@@ -1,4 +1,28 @@
+/**
+ * Create Payment Edge Function
+ * 
+ * Cria preferência de pagamento no Mercado Pago com split payment automático.
+ * A comissão é calculada baseada no commission_rate do bar e aplicada via application_fee.
+ */
+
+// @ts-ignore - Deno types
+/// <reference lib="deno.ns" />
+
+// Declarações de tipo globais para Deno
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
+declare const Response: typeof globalThis.Response;
+declare const fetch: typeof globalThis.fetch;
+declare const console: typeof globalThis.console;
+
+// @ts-ignore - Deno import
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+// @ts-ignore - Deno import
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -37,10 +61,28 @@ serve(async (req) => {
   }
 
   try {
+    // Validar variáveis de ambiente
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Variáveis de ambiente não configuradas:", {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!supabaseServiceKey,
+      });
+      return new Response(
+        JSON.stringify({ error: "Configuração do servidor incompleta" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Criar cliente Supabase
     const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      supabaseUrl,
+      supabaseServiceKey,
       {
         auth: {
           autoRefreshToken: false,
@@ -49,8 +91,43 @@ serve(async (req) => {
       }
     );
 
-    const body: CreatePaymentRequest = await req.json();
+    // Validar body da requisição
+    let body: CreatePaymentRequest;
+    try {
+      body = await req.json();
+    } catch (error) {
+      console.error("Erro ao fazer parse do body:", error);
+      return new Response(
+        JSON.stringify({ error: "Body da requisição inválido" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const { order_id, items, payer, back_urls, auto_return } = body;
+
+    // Validar parâmetros obrigatórios
+    if (!order_id) {
+      return new Response(
+        JSON.stringify({ error: "order_id é obrigatório" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "items é obrigatório e deve conter pelo menos um item" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     // Obter credenciais do Mercado Pago
     const mpAccessToken = Deno.env.get("MP_ACCESS_TOKEN_MARKETPLACE");
@@ -80,13 +157,14 @@ serve(async (req) => {
       console.log("✅ Usando token de PRODUÇÃO");
     }
 
-    // Buscar informações do pedido no Supabase
+    // Buscar informações do pedido e bar no Supabase
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(`
         *,
         bars:bar_id (
-          mp_user_id
+          mp_user_id,
+          commission_rate
         )
       `)
       .eq("id", order_id)
@@ -103,16 +181,80 @@ serve(async (req) => {
       );
     }
 
-    const mpUserId = (order.bars as any)?.mp_user_id;
-    if (!mpUserId) {
+    // Validar estrutura do order
+    if (!order.bar_id) {
+      console.error("Order sem bar_id:", order);
       return new Response(
-        JSON.stringify({ error: "Bar não possui MP_USER_ID configurado" }),
+        JSON.stringify({ error: "Pedido inválido: bar_id não encontrado" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
+
+    const bar = order.bars as any;
+    if (!bar) {
+      console.error("Bar não encontrado para order:", order.bar_id);
+      return new Response(
+        JSON.stringify({ error: "Bar não encontrado para este pedido" }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const mpUserId = bar?.mp_user_id;
+    const commissionRate = bar?.commission_rate || 0.05;
+
+    // Validar que o bar possui mp_user_id configurado
+    if (!mpUserId) {
+      console.error("Bar não possui MP_USER_ID configurado:", order.bar_id);
+      return new Response(
+        JSON.stringify({ 
+          error: "Bar não possui Mercado Pago conectado. Conecte o bar ao Mercado Pago antes de processar pagamentos." 
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Calcular application_fee para split payment
+    const totalAmount = parseFloat(String(order.total_amount || 0));
+    if (isNaN(totalAmount) || totalAmount <= 0) {
+      console.error("Total amount inválido:", order.total_amount);
+      return new Response(
+        JSON.stringify({ error: "Valor total do pedido inválido" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const applicationFee = totalAmount * commissionRate;
+    
+    if (applicationFee <= 0 || isNaN(applicationFee)) {
+      console.error("Application fee inválido:", { totalAmount, commissionRate, applicationFee });
+      return new Response(
+        JSON.stringify({ error: "Erro ao calcular comissão" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log("💰 Split Payment Config:", {
+      totalAmount,
+      commissionRate: `${(commissionRate * 100).toFixed(2)}%`,
+      applicationFee,
+      barAmount: totalAmount - applicationFee,
+      mpUserId,
+    });
 
     // Criar preferência de pagamento no Mercado Pago
     // IMPORTANTE: Não especificar sandbox aqui - o access token determina o ambiente
@@ -130,6 +272,9 @@ serve(async (req) => {
       notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mp-webhook`,
       statement_descriptor: "Cantim",
       external_reference: order_id,
+      // Split Payment: application_fee é a comissão que você recebe
+      // O Mercado Pago automaticamente divide: total = bar_amount + application_fee
+      application_fee: parseFloat(applicationFee.toFixed(2)),
     };
 
     // Se houver URLs de retorno, adicionar

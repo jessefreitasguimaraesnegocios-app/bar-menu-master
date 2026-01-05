@@ -18,6 +18,21 @@
 // @ts-ignore - Deno types
 /// <reference lib="deno.ns" />
 
+// Declarações de tipo globais para Deno
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+    toObject?(): Record<string, string>;
+  };
+};
+
+declare const Response: typeof globalThis.Response;
+declare const Request: typeof globalThis.Request;
+declare const fetch: typeof globalThis.fetch;
+declare const console: typeof globalThis.console;
+declare const URL: typeof globalThis.URL;
+declare const URLSearchParams: typeof globalThis.URLSearchParams;
+
 // @ts-ignore - Deno import
 import { serve } from "https://deno.land/std@0.192.0/http/server.ts";
 
@@ -72,25 +87,105 @@ interface OAuthConfig {
 // ============================================================================
 
 function getOAuthConfig(): OAuthConfig {
-  // @ts-ignore - Deno global
+  // Debug: Listar TODAS as variáveis de ambiente disponíveis (apenas nomes, não valores)
+  const allEnvKeys: string[] = [];
+  try {
+    // Tentar acessar todas as variáveis conhecidas do Supabase
+    const knownKeys: string[] = [
+      "MP_CLIENT_ID", "MP_CLIENT_SECRET", "MP_REDIRECT_URI", "FRONTEND_URL",
+      "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY",
+      "MP_ACCESS_TOKEN_MARKETPLACE", "SUPABASE_DB_URL"
+    ];
+    knownKeys.forEach((key: string) => {
+      if (Deno.env.get(key)) {
+        allEnvKeys.push(key);
+      }
+    });
+  } catch (e) {
+    console.warn("⚠️ Não foi possível listar variáveis de ambiente:", e);
+  }
+
   const clientId = Deno.env.get("MP_CLIENT_ID");
-  // @ts-ignore - Deno global
   const clientSecret = Deno.env.get("MP_CLIENT_SECRET");
-  // @ts-ignore - Deno global
   const redirectUri = Deno.env.get("MP_REDIRECT_URI");
-  // @ts-ignore - Deno global
-  const frontendUrl = Deno.env.get("FRONTEND_URL") || "http://localhost:8080";
-    // @ts-ignore - Deno global
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    // @ts-ignore - Deno global
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const frontendUrlRaw = Deno.env.get("FRONTEND_URL");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  
+  // Debug: Log quais variáveis estão presentes (sem mostrar valores)
+  console.log("🔍 Verificando variáveis de ambiente:", {
+    hasMP_CLIENT_ID: !!clientId,
+    hasMP_CLIENT_SECRET: !!clientSecret,
+    hasMP_REDIRECT_URI: !!redirectUri,
+    hasFRONTEND_URL: !!frontendUrlRaw,
+    hasSUPABASE_URL: !!supabaseUrl,
+    hasSUPABASE_SERVICE_ROLE_KEY: !!serviceKey,
+    clientIdLength: clientId?.length || 0,
+    clientSecretLength: clientSecret?.length || 0,
+    availableEnvKeys: allEnvKeys,
+    totalAvailable: allEnvKeys.length,
+  });
+
+  // Debug adicional: Tentar acessar via Deno.env.toObject() se disponível
+  try {
+    if (Deno.env.toObject && typeof Deno.env.toObject === 'function') {
+      const allEnv = Deno.env.toObject();
+      const envKeys = Object.keys(allEnv).filter(key => 
+        key.includes('MP_') || key.includes('SUPABASE_') || key.includes('FRONTEND_')
+      );
+      console.log("🔍 Todas as variáveis de ambiente disponíveis (filtradas):", envKeys);
+    }
+  } catch (e) {
+    // Ignorar se toObject não estiver disponível
+  }
     
+  // Validação detalhada com mensagens de erro claras
   if (!clientId || !clientSecret) {
-    throw new Error("MP_CLIENT_ID e MP_CLIENT_SECRET são obrigatórios");
+    const missing: string[] = [];
+    if (!clientId) missing.push("MP_CLIENT_ID");
+    if (!clientSecret) missing.push("MP_CLIENT_SECRET");
+    console.error("❌ Variáveis faltando:", missing);
+    throw new Error(
+      `Variáveis de ambiente obrigatórias não configuradas: ${missing.join(", ")}. ` +
+      `Configure-as no Supabase Dashboard → Edge Functions → Settings → Environment Variables. ` +
+      `Após configurar, faça redeploy: npx supabase@latest functions deploy mp-oauth-callback --no-verify-jwt`
+    );
   }
 
   if (!supabaseUrl || !serviceKey) {
-    throw new Error("SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórios");
+    const missing: string[] = [];
+    if (!supabaseUrl) missing.push("SUPABASE_URL");
+    if (!serviceKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+    throw new Error(
+      `Variáveis de ambiente do Supabase não configuradas: ${missing.join(", ")}. ` +
+      `Configure-as no Supabase Dashboard → Edge Functions → Settings → Environment Variables`
+    );
+  }
+
+  // Limpar e validar frontendUrl
+  let frontendUrl = "http://localhost:8080"; // Default
+  if (frontendUrlRaw) {
+    frontendUrl = frontendUrlRaw.trim().replace(/[`'"]/g, ''); // Remove backticks, quotes
+    // Garantir que seja uma URL válida
+    try {
+      new URL(frontendUrl);
+    } catch {
+      console.warn("⚠️ FRONTEND_URL inválido, usando default:", frontendUrlRaw);
+      frontendUrl = "http://localhost:8080";
+    }
+  }
+
+  // Limpar e validar frontendUrl
+  let cleanFrontendUrl = "http://localhost:8080"; // Default
+  if (frontendUrl) {
+    cleanFrontendUrl = frontendUrl.trim().replace(/[`'"]/g, ''); // Remove backticks, quotes
+    // Garantir que seja uma URL válida
+    try {
+      new URL(cleanFrontendUrl);
+    } catch {
+      console.warn("⚠️ FRONTEND_URL inválido, usando default:", frontendUrl);
+      cleanFrontendUrl = "http://localhost:8080";
+    }
   }
 
   // Se redirectUri não estiver configurado, gerar automaticamente
@@ -102,7 +197,7 @@ function getOAuthConfig(): OAuthConfig {
     clientId: clientId.trim(),
     clientSecret: clientSecret.trim(),
     redirectUri: finalRedirectUri,
-    frontendUrl: frontendUrl.trim(),
+    frontendUrl: cleanFrontendUrl,
     supabaseUrl: supabaseUrl.trim(),
     serviceKey: serviceKey.trim(),
   };
@@ -236,7 +331,7 @@ class MercadoPagoClient {
    * Parse error response from Mercado Pago API
    */
   private static async parseErrorResponse(
-    response: Response
+    response: typeof Response.prototype
   ): Promise<OAuthErrorResponse> {
     try {
       const text = await response.text();
@@ -456,7 +551,7 @@ const corsHeaders = {
 /**
  * Handler principal da Edge Function
  */
-serve(async (req: Request) => {
+serve(async (req: typeof Request.prototype) => {
   // CORS preflight - obrigatório para OAuth callbacks
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -469,7 +564,20 @@ serve(async (req: Request) => {
     });
 
     // Extrair parâmetros da URL
-    const url = new URL(req.url);
+    let url: InstanceType<typeof URL>;
+    try {
+      url = new URL(req.url);
+    } catch (urlError) {
+      console.error("❌ Erro ao fazer parse da URL:", urlError);
+      return new Response(
+        JSON.stringify({ error: "URL inválida" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const params: OAuthCallbackParams = {
       code: url.searchParams.get("code") || "",
       state: url.searchParams.get("state") || "",
@@ -484,30 +592,78 @@ serve(async (req: Request) => {
       callbackUrl: url.toString(),
     });
 
+    // Validar parâmetros básicos
+    if (params.error) {
+      console.error("❌ Erro do Mercado Pago:", params.error);
+      const config = getOAuthConfig();
+      const errorUrl = `${config.frontendUrl}/admin?oauth=error&message=${encodeURIComponent(params.error)}`;
+      return new Response(null, {
+        status: 302,
+        headers: { ...corsHeaders, Location: errorUrl },
+      });
+    }
+
+    if (!params.code) {
+      console.error("❌ Code não fornecido no callback");
+      const config = getOAuthConfig();
+      const errorUrl = `${config.frontendUrl}/admin?oauth=error&message=${encodeURIComponent("Código de autorização não fornecido")}`;
+      return new Response(null, {
+        status: 302,
+        headers: { ...corsHeaders, Location: errorUrl },
+      });
+    }
+
+    if (!params.state) {
+      console.error("❌ State não fornecido no callback");
+      const config = getOAuthConfig();
+      const errorUrl = `${config.frontendUrl}/admin?oauth=error&message=${encodeURIComponent("State não fornecido")}`;
+      return new Response(null, {
+        status: 302,
+        headers: { ...corsHeaders, Location: errorUrl },
+      });
+    }
+
     // Processar OAuth
     const oauthService = new OAuthService();
     const successUrl = await oauthService.processCallback(params);
 
     console.log("✅ OAuth processado com sucesso, redirecionando...");
-    return Response.redirect(successUrl, 302);
+    return new Response(null, {
+      status: 302,
+      headers: { ...corsHeaders, Location: successUrl },
+    });
   } catch (error: unknown) {
     console.error("❌ Erro ao processar OAuth:", error);
 
     const errorMessage =
       error instanceof Error ? error.message : "Erro desconhecido";
 
+    console.error("❌ Detalhes do erro:", {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     // Tentar obter URL de erro (pode falhar se config não estiver disponível)
     let errorUrl: string;
     try {
       const oauthService = new OAuthService();
       errorUrl = oauthService.getErrorRedirectUrl(errorMessage);
-    } catch {
+    } catch (fallbackError) {
       // Fallback se não conseguir criar OAuthService
-      // @ts-ignore - Deno global
-      const frontendUrl = Deno.env.get("FRONTEND_URL") || "http://localhost:8080";
-      errorUrl = `${frontendUrl}/admin?oauth=error&message=${encodeURIComponent(errorMessage)}`;
+      console.error("❌ Erro ao criar OAuthService para fallback:", fallbackError);
+      try {
+        const config = getOAuthConfig();
+        errorUrl = `${config.frontendUrl}/admin?oauth=error&message=${encodeURIComponent(errorMessage)}`;
+      } catch (configError) {
+        // Último fallback - usar URL hardcoded
+        console.error("❌ Erro ao obter config para fallback:", configError);
+        errorUrl = `http://localhost:8080/admin?oauth=error&message=${encodeURIComponent(errorMessage)}`;
+      }
     }
 
-    return Response.redirect(errorUrl, 302);
+    return new Response(null, {
+      status: 302,
+      headers: { ...corsHeaders, Location: errorUrl },
+    });
   }
 });

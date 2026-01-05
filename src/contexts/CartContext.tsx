@@ -133,27 +133,25 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       if (orderError || !newOrder) {
         console.error('Erro ao criar pedido:', orderError);
-        // Continuar mesmo assim, pois o pedido pode ser criado depois
+        throw new Error(`Erro ao criar pedido: ${orderError?.message || 'Pedido não foi criado'}`);
       }
 
-      // Criar order_items se o pedido foi criado
-      if (newOrder) {
-        const orderItemsData = orderItems.map(item => ({
-          order_id: newOrder.id,
-          menu_item_id: item.item_id,
-          quantity: item.quantity,
-          price: item.price,
-          subtotal: item.subtotal,
-        }));
+      // Criar order_items
+      const orderItemsData = orderItems.map(item => ({
+        order_id: newOrder.id,
+        menu_item_id: item.item_id,
+        quantity: item.quantity,
+        price: item.price,
+        subtotal: item.subtotal,
+      }));
 
-        const { error: orderItemsError } = await client
-          .from('order_items')
-          .insert(orderItemsData);
-        
-        if (orderItemsError) {
-          console.error('Erro ao criar order_items:', orderItemsError);
-          // Não falhar o fluxo se order_items falhar
-        }
+      const { error: orderItemsError } = await client
+        .from('order_items')
+        .insert(orderItemsData);
+      
+      if (orderItemsError) {
+        console.error('Erro ao criar order_items:', orderItemsError);
+        throw new Error(`Erro ao criar itens do pedido: ${orderItemsError.message}`);
       }
 
       // Chamar função Edge para criar pagamento
@@ -166,15 +164,17 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       const functionUrl = `${supabaseUrl}/functions/v1/create-payment`;
       
+      // Preparar items para a preferência do Mercado Pago
+      const mpItems = orderItems.map(item => ({
+        id: item.item_id,
+        title: item.title,
+        quantity: item.quantity,
+        unit_price: item.price,
+      }));
+      
       const requestBody = {
-        bar_id: barId,
-        items: orderItems.map(item => ({
-          id: item.item_id,
-          title: item.title,
-          quantity: item.quantity,
-          unit_price: item.price,
-        })),
-        commission_rate: bar.commission_rate || 0.06, // Taxa de comissão (padrão 6% se não configurado)
+        order_id: newOrder.id,
+        items: mpItems,
         payer: customerInfo ? {
           name: customerInfo.name,
           email: customerInfo.email,
@@ -189,7 +189,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           pending: `${window.location.origin}/payment/pending`,
         },
         auto_return: 'approved' as const,
-        external_reference: newOrder?.id || `bar_${barId}_${Date.now()}`,
       };
 
       console.log('📤 Enviando requisição para create-payment:', {
@@ -236,13 +235,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       const data = await response.json();
       console.log('✅ Dados recebidos da Edge Function:', {
-        preferenceId: data.preferenceId,
-        hasInitPoint: !!data.initPoint,
-        hasSandboxInitPoint: !!data.sandboxInitPoint,
+        preferenceId: data.preference_id,
+        hasInitPoint: !!data.init_point,
+        isSandbox: data.is_sandbox,
       });
       
-      // A nova função retorna initPoint ou sandboxInitPoint
-      const checkoutUrl = data.initPoint || data.sandboxInitPoint;
+      // A função retorna init_point (produção) ou sandbox_init_point (teste)
+      const checkoutUrl = data.init_point;
       
       if (checkoutUrl) {
         console.log('🔄 Redirecionando para checkout:', checkoutUrl);

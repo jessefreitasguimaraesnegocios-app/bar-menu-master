@@ -80,3 +80,5 @@ const response = await fetch(`${supabaseUrl}/functions/v1/delete-bar-user`, {
 - ✅ Usa service role apenas no servidor (nunca exposto ao cliente)
 
 
+
+

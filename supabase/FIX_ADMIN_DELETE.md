@@ -105,3 +105,5 @@ WHERE proname = 'is_admin';
 4. **Veja os logs do console do navegador** quando tentar deletar
 
 
+
+
