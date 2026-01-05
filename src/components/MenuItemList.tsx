@@ -26,8 +26,8 @@ interface MenuItemListProps {
   onEdit: (item: MenuItem) => void;
   onDelete: (id: string) => Promise<void>;
   onAdd: () => void;
-  barId?: string | null; // Opcional: permite passar barId diretamente
-  onImportDefault?: () => Promise<void>; // Função para importar itens padrão
+  barId?: string | null;
+  onImportDefault?: () => Promise<void> | Promise<MenuItem[]>;
 }
 
 const MenuItemList = ({ items, loading, onEdit, onDelete, onAdd, barId: propBarId, onImportDefault }: MenuItemListProps) => {

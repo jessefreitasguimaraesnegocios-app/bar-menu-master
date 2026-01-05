@@ -9,7 +9,15 @@
 DO $$ BEGIN
   CREATE TYPE kitchen_status AS ENUM ('pending', 'preparing', 'ready', 'delivered');
 EXCEPTION
-  WHEN duplicate_object THEN null;
+  WHEN duplicate_object THEN 
+    -- Adicionar 'delivered' se não existir
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum 
+      WHERE enumlabel = 'delivered' 
+      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'kitchen_status')
+    ) THEN
+      ALTER TYPE kitchen_status ADD VALUE 'delivered';
+    END IF;
 END $$;
 
 -- Adicionar coluna kitchen_status à tabela orders
