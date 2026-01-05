@@ -4,8 +4,8 @@ import { useCart } from "@/contexts/CartContext";
 import { motion, AnimatePresence } from "framer-motion";
 
 const CartButton = () => {
-  const { getTotalItems, openCart } = useCart();
-  const totalItems = getTotalItems();
+  const { itemCount, openCart } = useCart();
+  const totalItems = itemCount;
 
   return (
     <Button

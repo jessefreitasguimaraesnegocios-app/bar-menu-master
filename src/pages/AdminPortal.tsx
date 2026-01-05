@@ -225,11 +225,31 @@ const AdminPortal = () => {
         throw new Error('Supabase não está conectado');
       }
 
-      // Verificar se é admin
+      // Verificar se é admin usando a tabela user_roles
       const { data: { user } } = await client.auth.getUser();
-      if (!user || user.user_metadata?.role !== 'admin') {
+      if (!user) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      // Verificar se é admin na tabela user_roles
+      const { data: adminRole, error: roleError } = await client
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      if (roleError) {
+        console.error('Erro ao verificar role de admin:', roleError);
+        throw new Error('Erro ao verificar permissões de administrador');
+      }
+
+      if (!adminRole) {
+        console.error('Usuário não é admin. User ID:', user.id);
         throw new Error('Apenas administradores podem deletar bares');
       }
+
+      console.log('✅ Usuário confirmado como admin:', user.id);
 
       // Deletar permanentemente do banco de dados do Supabase
       console.log(`🗑️ Deletando bar ${barId} (${barName}) do banco de dados...`);
@@ -245,62 +265,307 @@ const AdminPortal = () => {
         throw new Error(`Bar não encontrado: ${barName}`);
       }
 
-      // Deletar permanentemente
-      // Tentar deletar sem select primeiro (mais rápido)
-      const { error: deleteError } = await client
-        .from('bars')
-        .delete()
-        .eq('id', barId);
+      // Deletar dados relacionados primeiro (em ordem reversa das dependências)
+      console.log('🗑️ Deletando pedidos relacionados...');
+      
+      // 1. Deletar payments relacionados aos orders do bar
+      // (payments já será deletado automaticamente via CASCADE quando orders for deletado,
+      // mas vamos garantir que não haja problemas)
+      
+      // 2. Deletar order_items relacionados aos orders do bar
+      // (order_items já será deletado automaticamente via CASCADE quando orders for deletado)
+      
+      // 3. Deletar orders do bar (isso vai deletar automaticamente order_items e payments via CASCADE)
+      const { data: ordersToDelete, error: ordersError } = await client
+        .from('orders')
+        .select('id')
+        .eq('bar_id', barId);
 
-      if (deleteError) {
-        console.error('❌ Erro ao deletar bar:', deleteError);
-        console.error('Código do erro:', deleteError.code);
-        console.error('Detalhes do erro:', JSON.stringify(deleteError, null, 2));
+      if (ordersError) {
+        console.warn('⚠️ Erro ao buscar orders para deletar:', ordersError);
+      } else if (ordersToDelete && ordersToDelete.length > 0) {
+        console.log(`🗑️ Encontrados ${ordersToDelete.length} pedido(s) para deletar`);
         
-        // Se for erro de permissão, tentar verificar role novamente
-        if (deleteError.code === '42501' || deleteError.message?.includes('permission') || deleteError.message?.includes('policy')) {
-          const { data: { user: currentUser } } = await client.auth.getUser();
-          console.error('Usuário atual:', {
-            id: currentUser?.id,
-            role: currentUser?.user_metadata?.role,
-            email: currentUser?.email
-          });
-          throw new Error(`Permissão negada (RLS). Verifique se você é admin. Role atual: ${currentUser?.user_metadata?.role || 'não definido'}`);
+        // Deletar todos os orders do bar
+        const { error: deleteOrdersError } = await client
+          .from('orders')
+          .delete()
+          .eq('bar_id', barId);
+
+        if (deleteOrdersError) {
+          console.error('❌ Erro ao deletar orders:', deleteOrdersError);
+          throw new Error(`Erro ao deletar pedidos relacionados: ${deleteOrdersError.message}`);
+        }
+        console.log('✅ Pedidos deletados com sucesso');
+      }
+
+      // 4. Deletar menu_items do bar (se houver)
+      const { error: deleteMenuItemsError } = await client
+        .from('menu_items')
+        .delete()
+        .eq('bar_id', barId);
+
+      if (deleteMenuItemsError) {
+        console.warn('⚠️ Erro ao deletar menu_items:', deleteMenuItemsError);
+        // Não falhar se não conseguir deletar menu_items, pode não ter permissão ou não existir
+      } else {
+        console.log('✅ Itens do menu deletados (se houver)');
+      }
+
+      // 5. Tentar usar a função SQL para deletar tudo de uma vez (mais robusto)
+      console.log('🗑️ Deletando o bar usando função SQL...');
+      
+      let deleteSuccess = false;
+      
+      // Primeiro, tentar usar a função SQL se existir
+      try {
+        const { data: rpcData, error: functionError } = await client.rpc('delete_bar_complete', {
+          bar_id_to_delete: barId
+        });
+
+        console.log('📊 Resposta RPC:', { rpcData, functionError });
+
+        if (!functionError) {
+          console.log('✅ Bar deletado usando função SQL');
+          deleteSuccess = true;
+        } else {
+          console.error('❌ Erro na função SQL:', functionError);
+          console.error('Código do erro:', functionError.code);
+          console.error('Mensagem:', functionError.message);
+          console.error('Detalhes:', JSON.stringify(functionError, null, 2));
+          
+          // Se for erro de permissão, tentar método direto
+          if (functionError.code === '42501' || functionError.message?.includes('permission')) {
+            console.log('⚠️ Erro de permissão na função SQL, tentando método direto...');
+          }
+        }
+      } catch (rpcError: any) {
+        console.error('❌ Erro ao chamar função RPC:', rpcError);
+        console.error('Tipo do erro:', typeof rpcError);
+        console.error('Mensagem:', rpcError.message);
+      }
+
+      // Se a função SQL não funcionou, tentar método direto
+      if (!deleteSuccess) {
+        console.log('🔄 Tentando deletar diretamente...');
+        
+        // Deletar payments relacionados (se ainda existirem)
+        const { data: ordersData } = await client
+          .from('orders')
+          .select('id')
+          .eq('bar_id', barId);
+        
+        if (ordersData && ordersData.length > 0) {
+          const orderIds = ordersData.map(o => o.id);
+          
+          // Deletar payments
+          await client
+            .from('payments')
+            .delete()
+            .in('order_id', orderIds);
+          
+          // Deletar order_items
+          await client
+            .from('order_items')
+            .delete()
+            .in('order_id', orderIds);
         }
         
-        throw new Error(`Erro ao deletar: ${deleteError.message || 'Erro desconhecido'}`);
+        // Deletar orders novamente (caso ainda existam)
+        await client
+          .from('orders')
+          .delete()
+          .eq('bar_id', barId);
+        
+        // Deletar menu_items
+        await client
+          .from('menu_items')
+          .delete()
+          .eq('bar_id', barId);
+        
+        // Deletar bar_settings
+        await client
+          .from('bar_settings')
+          .delete()
+          .eq('bar_id', barId);
+        
+        // Agora tentar deletar o bar - usar .select() para ver o que foi deletado
+        console.log('🗑️ Executando DELETE direto no banco de dados...');
+        console.log('📋 Bar ID a deletar:', barId);
+        
+        // Verificar novamente se é admin antes de deletar
+        const { data: { user: currentUser } } = await client.auth.getUser();
+        if (currentUser) {
+          const { data: adminCheck } = await client
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', currentUser.id)
+            .eq('role', 'admin')
+            .maybeSingle();
+          
+          console.log('🔐 Verificação de admin antes do DELETE:', {
+            userId: currentUser.id,
+            isAdmin: !!adminCheck,
+            adminData: adminCheck
+          });
+
+          if (!adminCheck) {
+            throw new Error('Permissão negada: você não é administrador. Verifique a tabela user_roles.');
+          }
+        }
+
+        const { data: deletedData, error: deleteError } = await client
+          .from('bars')
+          .delete()
+          .eq('id', barId)
+          .select('id, name');
+
+        if (deleteError) {
+          console.error('❌ Erro ao deletar bar:', deleteError);
+          console.error('Código do erro:', deleteError.code);
+          console.error('Mensagem:', deleteError.message);
+          console.error('Detalhes completos:', JSON.stringify(deleteError, null, 2));
+          
+          if (deleteError.code === '42501' || deleteError.message?.includes('permission') || deleteError.message?.includes('policy')) {
+            // Verificar políticas RLS
+            const { data: policiesCheck } = await client
+              .from('bars')
+              .select('*')
+              .eq('id', barId)
+              .limit(1);
+            
+            console.error('🔍 Verificação de políticas RLS:', {
+              podeLer: !!policiesCheck,
+              quantidade: policiesCheck?.length || 0
+            });
+            
+            throw new Error(`Permissão negada (RLS). Verifique se você é admin na tabela user_roles e se as políticas RLS estão configuradas corretamente.`);
+          }
+          
+          throw new Error(`Erro ao deletar: ${deleteError.message || 'Erro desconhecido'} (Código: ${deleteError.code || 'N/A'})`);
+        }
+        
+        // Verificar se algo foi realmente deletado
+        if (!deletedData || deletedData.length === 0) {
+          console.warn('⚠️ DELETE executado mas nenhum registro foi deletado');
+          // Verificar se o bar ainda existe
+          const { data: stillExists } = await client
+            .from('bars')
+            .select('id')
+            .eq('id', barId)
+            .single();
+          
+          if (stillExists) {
+            throw new Error('O bar não foi deletado. Nenhum registro foi removido. Verifique as políticas RLS.');
+          }
+        } else {
+          console.log('✅ DELETE executado. Registros deletados:', deletedData);
+        }
+        
+        // Verificar se realmente foi deletado
+        console.log('🔍 Verificando se o bar foi realmente deletado...');
+        await new Promise(resolve => setTimeout(resolve, 200)); // Aguardar um pouco
+        
+        const { data: verifyData, error: verifyError } = await client
+          .from('bars')
+          .select('id')
+          .eq('id', barId)
+          .single();
+
+        if (verifyError && verifyError.code === 'PGRST116') {
+          // PGRST116 = not found (esperado após delete bem-sucedido)
+          console.log('✅ Bar confirmado como deletado (não encontrado na verificação)');
+        } else if (verifyData) {
+          // Bar ainda existe (problema!)
+          console.error('❌ Bar ainda existe após tentativa de exclusão!');
+          throw new Error('Falha na exclusão: o bar ainda existe no banco de dados. Verifique as políticas RLS.');
+        } else if (verifyError) {
+          console.warn('⚠️ Erro ao verificar exclusão:', verifyError);
+          // Mas continuar, pois pode ser que o bar foi deletado
+        }
+        
+        console.log('✅ Bar deletado com sucesso do banco de dados');
       }
 
-      // Verificar se realmente foi deletado fazendo uma busca
-      const { data: verifyData, error: verifyError } = await client
-        .from('bars')
-        .select('id')
-        .eq('id', barId)
-        .single();
+      // Deletar usuário associado ao bar (se existir)
+      console.log('🗑️ Deletando usuário associado ao bar...');
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        if (!supabaseUrl) {
+          console.warn('⚠️ VITE_SUPABASE_URL não configurado, pulando deleção de usuário');
+        } else {
+          // Obter token de acesso do admin
+          const { data: { session } } = await client.auth.getSession();
+          if (session?.access_token) {
+            const deleteUserUrl = `${supabaseUrl}/functions/v1/delete-bar-user`;
+            const deleteUserResponse = await fetch(deleteUserUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ bar_id: barId }),
+            });
 
-      if (verifyError && verifyError.code !== 'PGRST116') {
-        // PGRST116 = not found (esperado após delete)
-        console.warn('⚠️ Erro ao verificar exclusão:', verifyError);
-      } else if (verifyData) {
-        // Bar ainda existe (problema!)
-        console.error('❌ Bar ainda existe após tentativa de exclusão!');
-        throw new Error('Falha na exclusão: o bar ainda existe no banco de dados');
-      } else {
-        console.log('✅ Bar confirmado como deletado (não encontrado na verificação)');
+            const deleteUserResult = await deleteUserResponse.json();
+            
+            if (deleteUserResponse.ok) {
+              if (deleteUserResult.deleted) {
+                console.log('✅ Usuário deletado com sucesso:', deleteUserResult.email);
+              } else {
+                console.log('ℹ️ Nenhum usuário encontrado para este bar (pode não ter usuário associado)');
+              }
+            } else {
+              console.warn('⚠️ Erro ao deletar usuário:', deleteUserResult.error || deleteUserResult);
+              // Não falhar a deleção do bar se falhar a deleção do usuário
+            }
+          } else {
+            console.warn('⚠️ Sessão não encontrada, pulando deleção de usuário');
+          }
+        }
+      } catch (userDeleteError: any) {
+        console.warn('⚠️ Erro ao tentar deletar usuário (continuando com deleção do bar):', userDeleteError);
+        // Não falhar a deleção do bar se falhar a deleção do usuário
       }
 
-      // Remover do estado local imediatamente antes de recarregar
-      setBars(prevBars => prevBars.filter(b => b.id !== barId));
-
+      // Aguardar um pouco para garantir que o banco processou a deleção
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Forçar atualização completa do banco para verificar se foi realmente deletado
+      console.log('🔄 Recarregando lista de bares do banco de dados...');
+      await fetchBars(true);
+      
+      // Verificar se o bar ainda existe após o reload (com tratamento de erro para evitar 406)
+      try {
+        const { data: finalCheck, error: finalCheckError } = await client
+          .from('bars')
+          .select('id')
+          .eq('id', barId)
+          .maybeSingle(); // usar maybeSingle ao invés de single para evitar erro se não encontrar
+        
+        if (finalCheck) {
+          // Bar ainda existe - erro!
+          console.error('❌ Bar ainda existe após deleção!');
+          throw new Error('O bar não foi deletado do banco de dados. Verifique as políticas RLS e permissões.');
+        } else if (finalCheckError && finalCheckError.code !== 'PGRST116') {
+          // Erro diferente de "não encontrado" - pode ser 406 ou outro erro
+          console.warn('⚠️ Erro ao verificar deleção final:', finalCheckError);
+          // Não falhar, pois o bar pode ter sido deletado mesmo com erro na verificação
+        } else {
+          console.log('✅ Bar confirmado como deletado na verificação final');
+        }
+      } catch (checkErr: any) {
+        // Ignorar erros de verificação se não for o erro de "bar ainda existe"
+        if (checkErr.message?.includes('não foi deletado')) {
+          throw checkErr;
+        }
+        console.warn('⚠️ Erro na verificação final (ignorado):', checkErr);
+      }
+      
       toast({
         title: 'Bar deletado permanentemente',
         description: `${barName} foi removido permanentemente do banco de dados.`,
       });
-
-      // Aguardar um pouco e então forçar atualização completa do banco
-      setTimeout(async () => {
-        await fetchBars(true);
-      }, 500);
       
     } catch (error: any) {
       console.error('❌ Erro completo ao deletar bar:', error);
@@ -729,10 +994,11 @@ const AdminPortal = () => {
                               Config
                             </Button>
                             <Button
-                              variant="outline"
+                              variant="destructive"
                               size="sm"
-                              className="text-destructive hover:text-destructive"
+                              className="hover:bg-destructive/90"
                               onClick={() => handleDeleteBar(bar.id, bar.name)}
+                              title={`Deletar ${bar.name}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

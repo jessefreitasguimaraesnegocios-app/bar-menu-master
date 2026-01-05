@@ -190,3 +190,5 @@ const BarMenu = () => {
 };
 
 export default BarMenu;
+
+

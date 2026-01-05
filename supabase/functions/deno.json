@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "lib": ["deno.ns", "deno.unstable"],
-    "strict": true
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "imports": {
     "supabase": "https://esm.sh/v135/@supabase/supabase-js@2/dist/esm/index.js"

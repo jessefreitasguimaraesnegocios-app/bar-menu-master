@@ -3,123 +3,66 @@ import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { Minus, Plus, Trash2, ShoppingBag, X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
-import { getSupabaseClient } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { Link, useParams } from 'react-router-dom';
+import { useBar } from '@/hooks/useBar';
+import { useAuth } from '@/contexts/AuthContext';
 
 const CartDrawer = () => {
-  const { items, isCartOpen, closeCart, updateQuantity, removeItem, getTotal, clearCart } = useCart();
-  const [loading, setLoading] = useState(false);
+  const { items, isOpen, closeCart, updateQuantity, removeItem, total, clearCart, checkout, isCheckingOut } = useCart();
   const { toast } = useToast();
+  const { slug } = useParams<{ slug?: string }>();
+  const { bar: barBySlug, loading: barLoading } = useBar(slug || undefined);
+  const { barId: authBarId } = useAuth();
+  
+  // Determinar barId: prioridade para bar da URL (slug), senão usar do auth
+  const currentBarId = barBySlug?.id || authBarId;
 
   const handleCheckout = async () => {
-    if (items.length === 0) return;
+    if (barLoading) {
+      toast({
+        title: 'Aguarde',
+        description: 'Carregando informações do estabelecimento...',
+        variant: 'default',
+      });
+      return;
+    }
 
-    setLoading(true);
-    const supabase = getSupabaseClient();
-
-    if (!supabase) {
+    if (!currentBarId) {
+      console.error('BarId não encontrado:', { slug, barBySlug, authBarId });
       toast({
         title: 'Erro',
-        description: 'Não foi possível conectar ao servidor',
+        description: 'Não foi possível identificar o estabelecimento. Por favor, acesse o cardápio através de um link válido do estabelecimento.',
         variant: 'destructive',
       });
-      setLoading(false);
+      return;
+    }
+
+    if (items.length === 0) {
+      toast({
+        title: 'Carrinho vazio',
+        description: 'Adicione itens ao carrinho antes de finalizar o pedido.',
+        variant: 'destructive',
+      });
       return;
     }
 
     try {
-      // Para simplificar, vamos usar o primeiro bar cadastrado
-      // Em produção, o bar seria determinado pela rota /bar/:slug
-      const { data: bars } = await supabase.from('bars').select('id').eq('active', true).limit(1);
-      
-      if (!bars || bars.length === 0) {
-        toast({
-          title: 'Erro',
-          description: 'Nenhum estabelecimento disponível',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
-      const barId = bars[0].id;
-      const total = getTotal();
-
-      // Criar o pedido
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          bar_id: barId,
-          total_amount: total,
-          status: 'pending',
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Inserir itens do pedido
-      const orderItems = items.map(item => ({
-        order_id: order.id,
-        menu_item_id: item.id,
-        quantity: item.quantity,
-        price: item.price,
-        subtotal: item.price * item.quantity,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
-
-      // Chamar a edge function para criar o pagamento MP
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke('create-payment', {
-        body: {
-          order_id: order.id,
-          items: items.map(item => ({
-            id: item.id,
-            title: item.name,
-            quantity: item.quantity,
-            unit_price: item.price,
-          })),
-          back_urls: {
-            success: `${window.location.origin}/menu?status=success`,
-            failure: `${window.location.origin}/menu?status=failure`,
-            pending: `${window.location.origin}/menu?status=pending`,
-          },
-          auto_return: 'approved',
-        },
-      });
-
-      if (paymentError) {
-        console.error('Erro ao criar pagamento:', paymentError);
-        throw paymentError;
-      }
-
-      if (paymentData?.init_point) {
-        // Redirecionar para o Mercado Pago
-        clearCart();
-        closeCart();
-        window.location.href = paymentData.init_point;
-      } else {
-        throw new Error('URL de pagamento não retornada');
-      }
+      console.log('Iniciando checkout com barId:', currentBarId);
+      await checkout(currentBarId);
     } catch (error: any) {
       console.error('Erro no checkout:', error);
+      const errorMessage = error?.message || 'Não foi possível processar o pagamento. Tente novamente.';
       toast({
-        title: 'Erro no checkout',
-        description: error.message || 'Não foi possível processar o pagamento',
+        title: 'Erro ao processar pagamento',
+        description: errorMessage,
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
-    <Sheet open={isCartOpen} onOpenChange={closeCart}>
+    <Sheet open={isOpen} onOpenChange={closeCart}>
       <SheetContent className="w-full sm:max-w-lg bg-background border-l border-border/50 flex flex-col">
         <SheetHeader className="border-b border-border/30 pb-4">
           <SheetTitle className="flex items-center gap-2 text-foreground">
@@ -204,7 +147,7 @@ const CartDrawer = () => {
             <div className="flex justify-between items-center w-full">
               <span className="text-muted-foreground">Subtotal:</span>
               <span className="text-xl font-bold text-primary">
-                R$ {getTotal().toFixed(2)}
+                R$ {total.toFixed(2)}
               </span>
             </div>
             
@@ -213,7 +156,7 @@ const CartDrawer = () => {
                 variant="outline"
                 className="flex-1"
                 onClick={clearCart}
-                disabled={loading}
+                disabled={isCheckingOut}
               >
                 <X className="h-4 w-4 mr-2" />
                 Limpar
@@ -221,13 +164,15 @@ const CartDrawer = () => {
               <Button
                 className="flex-1 bg-primary hover:bg-primary/90"
                 onClick={handleCheckout}
-                disabled={loading}
+                disabled={isCheckingOut || !currentBarId || items.length === 0 || barLoading}
               >
-                {loading ? (
+                {isCheckingOut ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Processando...
                   </>
+                ) : !currentBarId ? (
+                  'Aguardando estabelecimento...'
                 ) : (
                   'Finalizar Pedido'
                 )}
