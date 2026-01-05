@@ -94,11 +94,20 @@ serve(async (req) => {
     // Validar body da requisição
     let body: CreatePaymentRequest;
     try {
-      body = await req.json();
+      const bodyText = await req.text();
+      console.log("📥 Body recebido (raw):", bodyText.substring(0, 500)); // Log primeiro 500 chars
+      body = JSON.parse(bodyText);
+      console.log("📥 Body parseado:", {
+        hasOrderId: !!body.order_id,
+        orderId: body.order_id,
+        hasItems: !!body.items,
+        itemsCount: body.items?.length || 0,
+        bodyKeys: Object.keys(body),
+      });
     } catch (error) {
-      console.error("Erro ao fazer parse do body:", error);
+      console.error("❌ Erro ao fazer parse do body:", error);
       return new Response(
-        JSON.stringify({ error: "Body da requisição inválido" }),
+        JSON.stringify({ error: "Body da requisição inválido", details: error instanceof Error ? error.message : String(error) }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -110,8 +119,21 @@ serve(async (req) => {
 
     // Validar parâmetros obrigatórios
     if (!order_id) {
+      console.error("❌ order_id não fornecido. Body recebido:", {
+        bodyKeys: Object.keys(body),
+        bodyValues: Object.values(body).map(v => typeof v === 'object' ? '[object]' : String(v)),
+        orderIdType: typeof body.order_id,
+        orderIdValue: body.order_id,
+      });
       return new Response(
-        JSON.stringify({ error: "order_id é obrigatório" }),
+        JSON.stringify({ 
+          error: "order_id é obrigatório",
+          received: {
+            bodyKeys: Object.keys(body),
+            orderIdPresent: 'order_id' in body,
+            orderIdValue: body.order_id,
+          }
+        }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

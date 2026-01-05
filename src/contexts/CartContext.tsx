@@ -132,9 +132,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         .single();
 
       if (orderError || !newOrder) {
-        console.error('Erro ao criar pedido:', orderError);
+        console.error('❌ Erro ao criar pedido:', orderError);
         throw new Error(`Erro ao criar pedido: ${orderError?.message || 'Pedido não foi criado'}`);
       }
+
+      // Validar que o pedido foi criado com ID
+      if (!newOrder.id) {
+        console.error('❌ Pedido criado mas sem ID:', newOrder);
+        throw new Error('Pedido foi criado mas não possui ID. Verifique a estrutura da tabela orders.');
+      }
+
+      console.log('✅ Pedido criado com sucesso:', {
+        orderId: newOrder.id,
+        barId: newOrder.bar_id,
+        totalAmount: newOrder.total_amount,
+      });
 
       // Criar order_items
       const orderItemsData = orderItems.map(item => ({
@@ -150,7 +162,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         .insert(orderItemsData);
       
       if (orderItemsError) {
-        console.error('Erro ao criar order_items:', orderItemsError);
+        console.error('❌ Erro ao criar order_items:', orderItemsError);
         throw new Error(`Erro ao criar itens do pedido: ${orderItemsError.message}`);
       }
 
@@ -191,9 +203,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         auto_return: 'approved' as const,
       };
 
+      // Validação final antes de enviar
+      if (!requestBody.order_id) {
+        console.error('❌ order_id não está presente no requestBody:', requestBody);
+        throw new Error('order_id é obrigatório mas não foi fornecido');
+      }
+
       console.log('📤 Enviando requisição para create-payment:', {
         functionUrl,
-        requestBody: { ...requestBody, items: requestBody.items.length + ' items' },
+        orderId: requestBody.order_id,
+        itemsCount: requestBody.items.length,
+        hasPayer: !!requestBody.payer,
+        requestBodyKeys: Object.keys(requestBody),
       });
 
       const response = await fetch(functionUrl, {
