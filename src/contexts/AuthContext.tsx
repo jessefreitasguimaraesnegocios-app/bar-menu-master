@@ -9,6 +9,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signInAsAdmin: (email: string, password: string) => Promise<void>;
   user: any | null;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,6 +19,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [barId, setBarId] = useState<string | null>(null);
   const [user, setUser] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const checkUserRole = (user: any) => {
     const role = user?.user_metadata?.role;
@@ -33,6 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const client = getSupabaseClient();
       if (!client) {
         setIsOwner(false);
+        setLoading(false);
         return;
       }
 
@@ -51,6 +54,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setIsOwner(false);
         setIsAdmin(false);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -218,6 +223,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signIn,
         signInAsAdmin,
         user,
+        loading,
       }}
     >
       {children}
