@@ -108,6 +108,16 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
       return;
     }
 
+    // Avisar o usuário que ele precisa fazer login na conta do Mercado Pago do bar
+    toast({
+      title: 'Atenção: Login necessário',
+      description: 'Você será redirecionado para o Mercado Pago. IMPORTANTE: Faça logout da conta atual (se houver) e faça login na CONTA DO BAR antes de autorizar.',
+      duration: 5000,
+    });
+
+    // Pequeno delay para o usuário ver a mensagem
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     setIsConnectingOAuth(true);
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -159,6 +169,22 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
       authUrl.searchParams.set('state', state);
       // Scope necessário para OAuth do Mercado Pago (offline_access permite refresh_token)
       authUrl.searchParams.set('scope', 'offline_access read write');
+      
+      // IMPORTANTE: Adicionar parâmetros para forçar login do bar
+      // Isso garante que o bar faça login na própria conta do Mercado Pago
+      // e não use uma sessão já existente do admin
+      
+      // Tentar forçar nova autorização (pode não ser suportado pelo MP, mas não causa erro)
+      authUrl.searchParams.set('approval_prompt', 'force');
+      
+      // Adicionar um timestamp único para garantir que cada autorização seja tratada como nova
+      // Isso ajuda a evitar cache de sessão
+      authUrl.searchParams.set('_t', Date.now().toString());
+      
+      // Adicionar um nonce único para garantir que cada requisição seja única
+      // Isso força o Mercado Pago a processar como uma nova autorização
+      const nonce = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      authUrl.searchParams.set('_nonce', nonce);
 
       console.log('🔐 URL de autorização gerada:', authUrl.toString());
       console.log('🔐 Parâmetros da URL:', {
@@ -510,6 +536,14 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
                         </p>
                       )}
                     </div>
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                        ⚠️ Importante antes de reautorizar:
+                      </p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                        Você será redirecionado para o Mercado Pago. Se você estiver logado em outra conta (ex: conta do admin), faça <strong>logout primeiro</strong> e então faça login na <strong>conta do bar</strong> antes de autorizar a conexão.
+                      </p>
+                    </div>
                     <Button
                       type="button"
                       variant="outline"
@@ -539,6 +573,14 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
                           Não conectado
                         </span>
                       </div>
+                    </div>
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                        ⚠️ Importante antes de conectar:
+                      </p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                        Você será redirecionado para o Mercado Pago. Se você estiver logado em outra conta (ex: conta do admin), faça <strong>logout primeiro</strong> e então faça login na <strong>conta do bar</strong> antes de autorizar a conexão.
+                      </p>
                     </div>
                     <Button
                       type="button"
