@@ -143,9 +143,10 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
         barId: isEditMode && bar ? bar.id : 'new'
       });
 
-      // IMPORTANTE: Construir URL de autorização do Mercado Pago
-      // O fluxo OAuth padrão do Mercado Pago:
-      // 1. Bar acessa URL de autorização
+      // IMPORTANTE: Construir URL de autorização OAuth do Mercado Pago
+      // 
+      // ✅ FLUXO OAuth CORRETO:
+      // 1. Bar acessa URL de autorização (redirecionamento de página, não fetch)
       // 2. Se não estiver logado, MP mostra tela de login
       // 3. Bar faz login na conta dele
       // 4. MP mostra tela de autorização do app
@@ -155,19 +156,23 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
       // ⚠️ IMPORTANTE: Se o admin estiver logado no MP no navegador,
       // o MP pode usar essa sessão automaticamente. Por isso é crucial
       // que o bar faça logout manualmente antes de clicar em conectar.
+      //
+      // ✅ USAR SEMPRE URL OFICIAL: https://auth.mercadopago.com.br/authorization
+      // ❌ NUNCA usar: /login, /oauth, URLs intermediárias
       
-      const mpAuthBaseUrl = import.meta.env.VITE_MP_AUTH_URL || 'https://auth.mercadopago.com/authorization';
+      // URL oficial do Mercado Pago para OAuth (Brasil)
+      const mpAuthBaseUrl = import.meta.env.VITE_MP_AUTH_URL || 'https://auth.mercadopago.com.br/authorization';
       const authUrl = new URL(mpAuthBaseUrl);
+      
+      // Parâmetros OBRIGATÓRIOS conforme documentação oficial
       authUrl.searchParams.set('client_id', mpClientId.trim());
       authUrl.searchParams.set('response_type', 'code');
       authUrl.searchParams.set('platform_id', 'mp');
       authUrl.searchParams.set('redirect_uri', redirectUri.trim());
       authUrl.searchParams.set('state', state);
+      
       // Scope necessário para OAuth do Mercado Pago (offline_access permite refresh_token)
       authUrl.searchParams.set('scope', 'offline_access read write');
-      
-      // Adicionar timestamp para garantir que cada autorização seja única
-      authUrl.searchParams.set('_t', Date.now().toString());
 
       console.log('🔐 URL de autorização gerada:', authUrl.toString());
       console.log('🔐 Parâmetros da URL:', {
@@ -179,11 +184,15 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
         scope: 'offline_access read write'
       });
 
-      // IMPORTANTE: Redirecionar direto para autorização
+      // ✅ IMPORTANTE: OAuth DEVE ser redirecionamento de página, NÃO fetch()
+      // Usar window.location.href ou window.location.assign()
       // O Mercado Pago vai mostrar login se necessário
       // Mas se houver sessão ativa, vai usar ela automaticamente
       // Por isso é crucial que o bar faça logout manual antes
       console.log('🔐 Redirecionando para autorização OAuth do Mercado Pago...');
+      console.log('🔐 URL oficial:', authUrl.toString());
+      
+      // ✅ CORRETO: Redirecionamento de página (não fetch)
       window.location.href = authUrl.toString();
       
       // Não definir isConnectingOAuth como false aqui, pois o usuário será redirecionado
