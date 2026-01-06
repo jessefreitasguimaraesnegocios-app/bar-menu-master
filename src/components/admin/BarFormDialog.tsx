@@ -108,10 +108,10 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
       return;
     }
 
-    // Avisar o usuário que ele precisa fazer login na conta do Mercado Pago do bar
+    // Avisar o usuário que ele será redirecionado para login
     toast({
-      title: 'Atenção: Login necessário',
-      description: 'Você será redirecionado para o Mercado Pago. IMPORTANTE: Faça logout da conta atual (se houver) e faça login na CONTA DO BAR antes de autorizar.',
+      title: 'Redirecionando para login',
+      description: 'Você será redirecionado para a página de LOGIN do Mercado Pago. Faça login na CONTA DO BAR (não use a conta do admin).',
       duration: 5000,
     });
 
@@ -153,13 +153,15 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
         barId: isEditMode && bar ? bar.id : 'new'
       });
 
-      // URL de autorização do Mercado Pago
-      // IMPORTANTE: Esta URL deve abrir a tela de login do bar no Mercado Pago
-      // O bar faz login, autoriza, e o MP redireciona para o redirect_uri com code e state
-      // 
-      // Para Brasil: https://auth.mercadopago.com.br/authorization
-      // Para Argentina: https://auth.mercadopago.com.ar/authorization
-      // Geral (redireciona automaticamente): https://auth.mercadopago.com/authorization
+      // IMPORTANTE: Construir URL de autorização do Mercado Pago
+      // O fluxo correto é:
+      // 1. Bar acessa URL de login do Mercado Pago (força login)
+      // 2. Bar faz login na conta dele
+      // 3. MP redireciona para autorização do app
+      // 4. Bar autoriza o app
+      // 5. MP redireciona para redirect_uri com code
+      
+      // Primeiro, construir a URL de autorização (será usada como redirect após login)
       const mpAuthBaseUrl = import.meta.env.VITE_MP_AUTH_URL || 'https://auth.mercadopago.com/authorization';
       const authUrl = new URL(mpAuthBaseUrl);
       authUrl.searchParams.set('client_id', mpClientId.trim());
@@ -170,21 +172,8 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
       // Scope necessário para OAuth do Mercado Pago (offline_access permite refresh_token)
       authUrl.searchParams.set('scope', 'offline_access read write');
       
-      // IMPORTANTE: Adicionar parâmetros para forçar login do bar
-      // Isso garante que o bar faça login na própria conta do Mercado Pago
-      // e não use uma sessão já existente do admin
-      
-      // Tentar forçar nova autorização (pode não ser suportado pelo MP, mas não causa erro)
-      authUrl.searchParams.set('approval_prompt', 'force');
-      
-      // Adicionar um timestamp único para garantir que cada autorização seja tratada como nova
-      // Isso ajuda a evitar cache de sessão
+      // Adicionar timestamp para garantir que cada autorização seja única
       authUrl.searchParams.set('_t', Date.now().toString());
-      
-      // Adicionar um nonce único para garantir que cada requisição seja única
-      // Isso força o Mercado Pago a processar como uma nova autorização
-      const nonce = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      authUrl.searchParams.set('_nonce', nonce);
 
       console.log('🔐 URL de autorização gerada:', authUrl.toString());
       console.log('🔐 Parâmetros da URL:', {
@@ -196,9 +185,18 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
         scope: 'offline_access read write'
       });
 
-      // IMPORTANTE: Redirecionar para a tela de login do Mercado Pago
-      // O usuário (bar) faz login, autoriza, e o MP redireciona de volta para o redirect_uri
-      window.location.href = authUrl.toString();
+      // IMPORTANTE: Redirecionar primeiro para a página de LOGIN do Mercado Pago
+      // Isso garante que o bar faça login na conta dele antes de autorizar
+      // A URL de login do MP aceita um parâmetro 'go' que redireciona após login
+      const mpLoginUrl = 'https://www.mercadopago.com.br/login';
+      const loginUrl = new URL(mpLoginUrl);
+      loginUrl.searchParams.set('go', authUrl.toString());
+
+      console.log('🔑 Redirecionando para LOGIN do Mercado Pago primeiro...');
+      console.log('🔐 Após login, será redirecionado para autorização:', authUrl.toString());
+
+      // Redirecionar para login primeiro, que depois redireciona para autorização
+      window.location.href = loginUrl.toString();
       
       // Não definir isConnectingOAuth como false aqui, pois o usuário será redirecionado
       // Se houver erro antes do redirect, será capturado no catch abaixo
@@ -541,7 +539,7 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
                         ⚠️ Importante antes de reautorizar:
                       </p>
                       <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                        Você será redirecionado para o Mercado Pago. Se você estiver logado em outra conta (ex: conta do admin), faça <strong>logout primeiro</strong> e então faça login na <strong>conta do bar</strong> antes de autorizar a conexão.
+                        Você será redirecionado para a <strong>página de LOGIN do Mercado Pago</strong>. Faça login na <strong>conta do bar</strong> (não use a conta do admin). Após fazer login, você será redirecionado para autorizar a conexão do aplicativo.
                       </p>
                     </div>
                     <Button
@@ -579,7 +577,7 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
                         ⚠️ Importante antes de conectar:
                       </p>
                       <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                        Você será redirecionado para o Mercado Pago. Se você estiver logado em outra conta (ex: conta do admin), faça <strong>logout primeiro</strong> e então faça login na <strong>conta do bar</strong> antes de autorizar a conexão.
+                        Você será redirecionado para a <strong>página de LOGIN do Mercado Pago</strong>. Faça login na <strong>conta do bar</strong> (não use a conta do admin). Após fazer login, você será redirecionado para autorizar a conexão do aplicativo.
                       </p>
                     </div>
                     <Button
