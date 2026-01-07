@@ -19,7 +19,7 @@ interface CartContextType {
   toggleCart: () => void;
   total: number;
   itemCount: number;
-  checkout: (barId: string, customerInfo?: { name?: string; email?: string; phone?: string }) => Promise<void>;
+  checkout: (barId: string, paymentMethod?: 'pix' | 'checkout', customerInfo?: { name?: string; email?: string; phone?: string }) => Promise<void>;
   isCheckingOut: boolean;
 }
 
@@ -84,6 +84,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const checkout = useCallback(async (
     barId: string,
+    paymentMethod: 'pix' | 'checkout' = 'pix',
     customerInfo?: { name?: string; email?: string; phone?: string }
   ) => {
     if (items.length === 0) {
@@ -201,6 +202,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           pending: `${window.location.origin}/payment/pending`,
         },
         auto_return: 'approved' as const,
+        payment_method: paymentMethod, // PIX ou checkout (cartão)
       };
 
       // Validação final antes de enviar
@@ -255,22 +257,22 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const data = await response.json();
-      console.log('✅ Dados recebidos da Edge Function:', {
-        preferenceId: data.preference_id,
-        hasInitPoint: !!data.init_point,
-        isSandbox: data.is_sandbox,
-      });
+      console.log('✅ Dados recebidos da Edge Function:', data);
       
-      // A função retorna init_point (produção) ou sandbox_init_point (teste)
-      const checkoutUrl = data.init_point;
-      
-      if (checkoutUrl) {
-        console.log('🔄 Redirecionando para checkout:', checkoutUrl);
-        // Redirecionar para o checkout do Mercado Pago
-        window.location.href = checkoutUrl;
+      // ✅ FORMA CORRETA: Sempre usar init_point (Checkout do Mercado Pago)
+      // Quando payment_method é "pix", o init_point já mostra o QR code automaticamente
+      // Quando payment_method é "checkout", mostra opções de cartão
+      // Essa é a forma oficial que Uber Eats, iFood, etc usam
+      if (data.init_point) {
+        console.log('🔄 Redirecionando para checkout Mercado Pago:', {
+          init_point: data.init_point,
+          payment_method: data.payment_method,
+          preference_id: data.preference_id,
+        });
+        window.location.href = data.init_point;
       } else {
-        console.error('❌ URL de checkout não encontrada na resposta:', data);
-        throw new Error('URL de checkout não retornada pela função de pagamento');
+        console.error('❌ Resposta inválida da função de pagamento:', data);
+        throw new Error('Resposta inválida da função de pagamento');
       }
     } catch (error) {
       console.error('Erro no checkout:', error);
@@ -303,6 +305,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       }}
     >
       {children}
+      
+      {/* Modal PIX Payment */}
     </CartContext.Provider>
   );
 };

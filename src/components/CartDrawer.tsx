@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useCart } from "@/contexts/CartContext";
-import { Minus, Plus, Trash2, ShoppingBag, X, Loader2 } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, X, Loader2, CreditCard, QrCode } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useParams } from 'react-router-dom';
@@ -14,6 +17,7 @@ const CartDrawer = () => {
   const { slug } = useParams<{ slug?: string }>();
   const { bar: barBySlug, loading: barLoading } = useBar(slug || undefined);
   const { barId: authBarId } = useAuth();
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'checkout'>('pix');
   
   // Determinar barId: prioridade para bar da URL (slug), senão usar do auth
   const currentBarId = barBySlug?.id || authBarId;
@@ -48,8 +52,8 @@ const CartDrawer = () => {
     }
 
     try {
-      console.log('Iniciando checkout com barId:', currentBarId);
-      await checkout(currentBarId);
+      console.log('Iniciando checkout com barId:', currentBarId, 'método:', paymentMethod);
+      await checkout(currentBarId, paymentMethod);
     } catch (error: any) {
       console.error('Erro no checkout:', error);
       const errorMessage = error?.message || 'Não foi possível processar o pagamento. Tente novamente.';
@@ -149,6 +153,31 @@ const CartDrawer = () => {
               <span className="text-xl font-bold text-primary">
                 R$ {total.toFixed(2)}
               </span>
+            </div>
+
+            {/* Seleção de método de pagamento */}
+            <div className="w-full space-y-2">
+              <Label className="text-sm font-medium">Forma de pagamento</Label>
+              <RadioGroup
+                value={paymentMethod}
+                onValueChange={(value) => setPaymentMethod(value as 'pix' | 'checkout')}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="pix" id="pix" />
+                  <Label htmlFor="pix" className="flex items-center gap-2 cursor-pointer">
+                    <QrCode className="h-4 w-4" />
+                    PIX
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="checkout" id="checkout" />
+                  <Label htmlFor="checkout" className="flex items-center gap-2 cursor-pointer">
+                    <CreditCard className="h-4 w-4" />
+                    Cartão
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
             
             <div className="flex gap-2 w-full">

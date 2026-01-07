@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getSupabaseClient } from '@/lib/supabase';
+import MercadoPagoQRDialog from './MercadoPagoQRDialog';
 
 // Schema base
 const baseBarSchema = z.object({
@@ -59,6 +60,8 @@ interface BarFormDialogProps {
 const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnectingOAuth, setIsConnectingOAuth] = useState(false);
+  const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
+  const [oauthAuthUrl, setOauthAuthUrl] = useState<string>('');
   const { toast } = useToast();
   const isEditMode = !!bar;
   
@@ -184,19 +187,16 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
         scope: 'offline_access read write'
       });
 
-      // ✅ IMPORTANTE: OAuth DEVE ser redirecionamento de página, NÃO fetch()
-      // Usar window.location.href ou window.location.assign()
-      // O Mercado Pago vai mostrar login se necessário
-      // Mas se houver sessão ativa, vai usar ela automaticamente
-      // Por isso é crucial que o bar faça logout manual antes
-      console.log('🔐 Redirecionando para autorização OAuth do Mercado Pago...');
+      // ✅ NOVO FLUXO: Abrir modal com QR Code ao invés de redirecionar
+      // O bar escaneia o QR Code no celular, faz login e autoriza
+      // O app detecta automaticamente quando a conexão for concluída
+      console.log('🔐 Abrindo modal QR Code para autorização OAuth...');
       console.log('🔐 URL oficial:', authUrl.toString());
       
-      // ✅ CORRETO: Redirecionamento de página (não fetch)
-      window.location.href = authUrl.toString();
-      
-      // Não definir isConnectingOAuth como false aqui, pois o usuário será redirecionado
-      // Se houver erro antes do redirect, será capturado no catch abaixo
+      // Salvar URL de autorização e abrir modal QR Code
+      setOauthAuthUrl(authUrl.toString());
+      setIsConnectingOAuth(false);
+      setIsQRDialogOpen(true);
     } catch (error: any) {
       console.error('❌ Erro ao iniciar OAuth:', error);
       setIsConnectingOAuth(false);
@@ -420,42 +420,43 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditMode ? 'Editar Bar' : 'Cadastrar Novo Bar'}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditMode
-              ? 'Atualize as informações do estabelecimento'
-              : 'Adicione um novo estabelecimento ao sistema'}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditMode ? 'Editar Bar' : 'Cadastrar Novo Bar'}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditMode
+                ? 'Atualize as informações do estabelecimento'
+                : 'Adicione um novo estabelecimento ao sistema'}
+            </DialogDescription>
+          </DialogHeader>
 
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            console.log('📝 Form submit iniciado');
-            console.log('Modo:', isEditMode ? 'Edição' : 'Criação');
-            console.log('Erros do formulário:', errors);
-            handleSubmit(
-              (data) => {
-                console.log('✅ Validação passou, dados:', data);
-                onSubmit(data);
-              },
-              (errors) => {
-                console.error('❌ Erros de validação:', errors);
-                toast({
-                  title: 'Erro de validação',
-                  description: 'Por favor, preencha todos os campos obrigatórios corretamente.',
-                  variant: 'destructive',
-                });
-              }
-            )(e);
-          }} 
-          className="space-y-4"
-        >
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              console.log('📝 Form submit iniciado');
+              console.log('Modo:', isEditMode ? 'Edição' : 'Criação');
+              console.log('Erros do formulário:', errors);
+              handleSubmit(
+                (data) => {
+                  console.log('✅ Validação passou, dados:', data);
+                  onSubmit(data);
+                },
+                (errors) => {
+                  console.error('❌ Erros de validação:', errors);
+                  toast({
+                    title: 'Erro de validação',
+                    description: 'Por favor, preencha todos os campos obrigatórios corretamente.',
+                    variant: 'destructive',
+                  });
+                }
+              )(e);
+            }} 
+            className="space-y-4"
+          >
           <div className="space-y-2">
             <Label htmlFor="barName">Nome do Bar *</Label>
             <Input
@@ -667,6 +668,21 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
         </form>
       </DialogContent>
     </Dialog>
+    
+    {/* Modal QR Code para OAuth */}
+    {isEditMode && bar && (
+      <MercadoPagoQRDialog
+        open={isQRDialogOpen}
+        onOpenChange={setIsQRDialogOpen}
+        authUrl={oauthAuthUrl}
+        barId={bar.id}
+        onSuccess={() => {
+          // Recarregar lista de bares quando conexão for bem-sucedida
+          onSuccess();
+        }}
+      />
+    )}
+  </>
   );
 };
 
