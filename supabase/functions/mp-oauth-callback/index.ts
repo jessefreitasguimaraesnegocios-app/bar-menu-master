@@ -68,7 +68,7 @@ interface OAuthCallbackParams {
 
 interface BarUpdateData {
   mp_user_id: string;
-  mp_access_token: string;
+  seller_access_token: string; // ✅ CORRIGIDO: Token do SELLER (bar), não do marketplace
   mp_refresh_token?: string | null;
   mp_oauth_connected_at: string;
 }
@@ -239,14 +239,17 @@ class MercadoPagoClient {
       redirect_uri: finalRedirectUri,
     });
 
-    // DEBUG: Logs detalhados para identificar o problema
-    console.log("🔄 Trocando code por tokens no Mercado Pago...");
-    console.log("📋 Parâmetros enviados:", {
+    // ✅ DEBUG: Logs detalhados para identificar o problema
+    console.log("🔄 Trocando code por tokens no Mercado Pago OAuth...");
+    console.log("📋 Parâmetros enviados para /oauth/token:", {
+      grant_type: "authorization_code",
       code: code.trim().substring(0, 20) + '...',
+      code_length: code.trim().length,
       client_id: clientId.trim().substring(0, 10) + '...',
+      client_id_length: clientId.trim().length,
       redirect_uri: finalRedirectUri,
       redirect_uri_length: finalRedirectUri.length,
-      grant_type: "authorization_code",
+      endpoint: `${MP_API_BASE}/oauth/token`,
     });
 
     const response = await fetch(`${MP_API_BASE}/oauth/token`, {
@@ -284,17 +287,28 @@ class MercadoPagoClient {
 
     const tokenData = await response.json() as OAuthTokenResponse;
 
+    // ✅ VALIDAÇÃO CRÍTICA: Garantir que a resposta contém todos os campos necessários
     if (!tokenData.access_token || !tokenData.user_id) {
       console.error("❌ Resposta incompleta do Mercado Pago:", {
         hasAccessToken: !!tokenData.access_token,
         hasUserId: !!tokenData.user_id,
+        responseKeys: Object.keys(tokenData),
+        fullResponse: JSON.stringify(tokenData),
       });
       throw new Error("Resposta do Mercado Pago incompleta: tokens ausentes");
     }
 
-    console.log("✅ Tokens obtidos com sucesso:", {
-      userId: tokenData.user_id,
+    // ✅ LOG DETALHADO: Mostrar exatamente o que foi retornado pelo OAuth
+    console.log("✅ Tokens obtidos com sucesso do Mercado Pago OAuth:", {
+      user_id: tokenData.user_id, // ✅ Este é o mp_user_id do SELLER (bar)
+      user_id_type: typeof tokenData.user_id,
+      access_token_prefix: tokenData.access_token?.substring(0, 20) + '...',
+      access_token_length: tokenData.access_token?.length,
       hasRefreshToken: !!tokenData.refresh_token,
+      expires_in: tokenData.expires_in,
+      scope: tokenData.scope,
+      // ✅ IMPORTANTE: Este access_token é do SELLER (bar), não do marketplace
+      // ✅ IMPORTANTE: Este user_id é o mp_user_id que será usado como collector_id
     });
 
     return tokenData;
@@ -480,15 +494,34 @@ class OAuthService {
     }
 
     // 5. Salvar tokens no banco
+    // ✅ IMPORTANTE: tokens.access_token é o token do SELLER (bar), não do marketplace
+    // ✅ IMPORTANTE: tokens.user_id é o mp_user_id do bar (seller)
     const updateData: BarUpdateData = {
-      mp_user_id: String(tokens.user_id),
-      mp_access_token: tokens.access_token,
+      mp_user_id: String(tokens.user_id), // ✅ Garantir que vem exatamente da resposta OAuth
+      seller_access_token: tokens.access_token, // ✅ Token do seller (bar), não do marketplace
       mp_refresh_token: tokens.refresh_token || null,
       mp_oauth_connected_at: new Date().toISOString(),
     };
 
+    console.log("💾 Dados que serão salvos no banco:", {
+      mp_user_id: updateData.mp_user_id,
+      has_seller_access_token: !!updateData.seller_access_token,
+      seller_token_prefix: updateData.seller_access_token?.substring(0, 20) + '...',
+      has_refresh_token: !!updateData.mp_refresh_token,
+      oauth_connected_at: updateData.mp_oauth_connected_at,
+    });
+
     await this.barRepository.updateOAuthTokens(params.state, updateData);
-    console.log("✅ OAuth processado com sucesso");
+    
+    // ✅ LOG FINAL: Confirmar que os dados foram salvos corretamente
+    console.log("✅ OAuth processado com sucesso!");
+    console.log("✅ Dados salvos no banco para o bar:", {
+      bar_id: params.state,
+      mp_user_id: updateData.mp_user_id,
+      seller_access_token_saved: !!updateData.seller_access_token,
+      // ✅ IMPORTANTE: mp_user_id será usado como collector_id no split payment
+      // ✅ IMPORTANTE: seller_access_token é o token do bar (seller), não do marketplace
+    });
 
     // 6. Retornar URL de sucesso
     return `${this.config.frontendUrl}/admin?oauth=success&bar_id=${params.state}`;

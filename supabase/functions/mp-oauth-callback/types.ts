@@ -29,8 +29,8 @@ export interface OAuthCallbackParams {
 }
 
 export interface BarUpdateData {
-  mp_user_id: string;
-  mp_access_token: string;
+  mp_user_id: string; // ✅ ID do seller (bar) retornado pelo OAuth
+  seller_access_token: string; // ✅ Token do seller (bar), NÃO do marketplace
   mp_refresh_token?: string | null;
   mp_oauth_connected_at: string;
 }

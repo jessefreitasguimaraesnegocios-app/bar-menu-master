@@ -187,7 +187,7 @@ serve(async (req) => {
         *,
         bars:bar_id (
           mp_user_id,
-          mp_access_token,
+          seller_access_token,
           commission_rate
         )
       `)
@@ -230,7 +230,8 @@ serve(async (req) => {
     }
 
     const mpUserId = bar?.mp_user_id;
-    const mpAccessTokenBar = bar?.mp_access_token; // Access token do bar para pagamentos diretos
+    // ✅ Nota: seller_access_token não é necessário para Checkout com split payment
+    // ✅ Apenas mp_user_id (collector_id) é necessário
     const commissionRate = bar?.commission_rate || 0.05;
 
     // Validar que o bar possui mp_user_id configurado
