@@ -60,7 +60,7 @@ const MercadoPagoQRDialog = ({
     try {
       const { data, error } = await client
         .from('bars')
-        .select('mp_access_token, mp_user_id')
+        .select('mp_oauth_connected_at')
         .eq('id', barId)
         .single();
 
@@ -69,8 +69,8 @@ const MercadoPagoQRDialog = ({
         return false;
       }
 
-      // Verificar se o bar tem access_token e user_id
-      return !!(data?.mp_access_token && data?.mp_user_id);
+      // Verificar se o bar tem mp_oauth_connected_at (indica que OAuth foi concluído)
+      return !!data?.mp_oauth_connected_at;
     } catch (error) {
       console.error('Erro ao verificar conexão:', error);
       return false;
@@ -85,7 +85,7 @@ const MercadoPagoQRDialog = ({
 
     setIsChecking(true);
     let pollCount = 0;
-    const maxPolls = 120; // 2 minutos (polling a cada 1 segundo)
+    const maxPolls = 60; // 3 minutos (polling a cada 3 segundos)
 
     const startPolling = () => {
       pollingIntervalRef.current = setInterval(async () => {
@@ -117,14 +117,14 @@ const MercadoPagoQRDialog = ({
             onOpenChange(false);
           }, 1500);
         } else if (pollCount >= maxPolls) {
-          // Parar polling após 2 minutos
+          // Parar polling após 3 minutos
           setIsChecking(false);
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = null;
           }
         }
-      }, 1000); // Verificar a cada 1 segundo
+      }, 3000); // Verificar a cada 3 segundos
     };
 
     // Iniciar polling após um pequeno delay

@@ -940,13 +940,20 @@ const AdminPortal = () => {
                                 {bar.name}
                               </CardTitle>
                               <CardDescription className="mt-1">
-                                ID MP: {bar.mp_user_id}
+                                ID MP: {bar.mp_user_id || 'Não conectado'}
                               </CardDescription>
-                              {bar.mp_access_token && (
+                              {bar.mp_oauth_connected_at && (
                                 <div className="flex items-center gap-1 mt-1">
                                   <CheckCircle2 className="h-3 w-3 text-green-600" />
                                   <span className="text-xs text-green-600">
-                                    OAuth Conectado
+                                    Mercado Pago conectado ✅
+                                  </span>
+                                </div>
+                              )}
+                              {!bar.mp_oauth_connected_at && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <span className="text-xs text-yellow-600">
+                                    Aguardando autorização…
                                   </span>
                                 </div>
                               )}

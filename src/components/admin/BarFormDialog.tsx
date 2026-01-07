@@ -65,7 +65,7 @@ const BarFormDialog = ({ open, onOpenChange, bar, onSuccess }: BarFormDialogProp
   const { toast } = useToast();
   const isEditMode = !!bar;
   
-  const isOAuthConnected = !!(bar?.mp_access_token && bar?.mp_user_id);
+  const isOAuthConnected = !!bar?.mp_oauth_connected_at;
 
   // Usar schema diferente para criação e edição
   const schema = isEditMode ? editBarSchema : createBarSchema;
