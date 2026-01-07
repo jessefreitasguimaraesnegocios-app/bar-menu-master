@@ -69,10 +69,24 @@ const CartDrawer = () => {
     <Sheet open={isOpen} onOpenChange={closeCart}>
       <SheetContent className="w-full sm:max-w-lg bg-background border-l border-border/50 flex flex-col">
         <SheetHeader className="border-b border-border/30 pb-4">
-          <SheetTitle className="flex items-center gap-2 text-foreground">
-            <ShoppingBag className="h-5 w-5 text-primary" />
-            Seu Carrinho
-          </SheetTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <SheetTitle className="flex items-center gap-2 text-foreground">
+                <ShoppingBag className="h-5 w-5 text-primary" />
+                Seu Carrinho
+              </SheetTitle>
+              {items.length > 0 && (
+                <button
+                  onClick={clearCart}
+                  disabled={isCheckingOut}
+                  className="text-sm flex flex-wrap hover:text-foreground transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ color: 'rgba(230, 158, 25, 1)' }}
+                >
+                  Limpar Carrinho
+                </button>
+              )}
+            </div>
+          </div>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto py-4">
@@ -85,7 +99,15 @@ const CartDrawer = () => {
               >
                 <ShoppingBag className="h-16 w-16 mb-4 opacity-30" />
                 <p className="text-lg">Seu carrinho está vazio</p>
-                <p className="text-sm">Adicione itens do cardápio</p>
+                <p className="text-sm mb-6">Adicione itens do cardápio</p>
+                <Link
+                  to={slug ? `/bar/${slug}/menu` : '/menu'}
+                  onClick={closeCart}
+                >
+                  <Button className="bg-primary hover:bg-primary/90">
+                    Ver Cardápio
+                  </Button>
+                </Link>
               </motion.div>
             ) : (
               <div className="space-y-3">
@@ -180,33 +202,22 @@ const CartDrawer = () => {
               </RadioGroup>
             </div>
             
-            <div className="flex gap-2 w-full">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={clearCart}
-                disabled={isCheckingOut}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Limpar
-              </Button>
-              <Button
-                className="flex-1 bg-primary hover:bg-primary/90"
-                onClick={handleCheckout}
-                disabled={isCheckingOut || !currentBarId || items.length === 0 || barLoading}
-              >
-                {isCheckingOut ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processando...
-                  </>
-                ) : !currentBarId ? (
-                  'Aguardando estabelecimento...'
-                ) : (
-                  'Finalizar Pedido'
-                )}
-              </Button>
-            </div>
+            <Button
+              className="w-full bg-primary hover:bg-primary/90"
+              onClick={handleCheckout}
+              disabled={isCheckingOut || !currentBarId || items.length === 0 || barLoading}
+            >
+              {isCheckingOut ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processando...
+                </>
+              ) : !currentBarId ? (
+                'Aguardando estabelecimento...'
+              ) : (
+                'Finalizar Pedido'
+              )}
+            </Button>
           </SheetFooter>
         )}
       </SheetContent>
